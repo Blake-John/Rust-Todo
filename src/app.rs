@@ -1,3 +1,4 @@
+use serde_json::ser;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 
@@ -53,6 +54,9 @@ impl App {
                 .unwrap();
 
             rt.block_on(ui.handle_uimsg(&mut terminal, apps_in_ui));
+            // let path = "data.json";
+            // let data = serde_json::to_string_pretty(&ui.workspace).unwrap();
+            // std::fs::write(path, data);
         });
 
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -67,6 +71,11 @@ impl App {
             .join()
             .map_err(|_| errors::Errors::AppError)
             .unwrap();
+        let result = _ui_handle
+            .join()
+            .map_err(|_| errors::Errors::UiError)
+            .unwrap();
+
         ratatui::restore();
         Ok(result)
     }

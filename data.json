@@ -1,0 +1,37 @@
+{
+  "workspaces": [
+    {
+      "desc": "-oo",
+      "expanded": true,
+      "children": [
+        {
+          "desc": "sfsff",
+          "expanded": true,
+          "children": []
+        }
+      ]
+    },
+    {
+      "desc": "sfsf",
+      "expanded": true,
+      "children": []
+    },
+    {
+      "desc": "affa",
+      "expanded": true,
+      "children": []
+    }
+  ],
+  "current_workspace": {
+    "desc": "-oo",
+    "expanded": true,
+    "children": [
+      {
+        "desc": "sfsff",
+        "expanded": true,
+        "children": []
+      }
+    ]
+  },
+  "focused": true
+}

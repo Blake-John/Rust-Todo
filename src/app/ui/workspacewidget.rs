@@ -4,8 +4,9 @@ use ratatui::{
     style::{Color, Style, Stylize},
     widgets::{Block, List, ListItem, ListState, Widget},
 };
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Workspace {
     pub desc: String,
     pub expanded: bool,
@@ -31,7 +32,7 @@ impl Workspace {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct WorkspaceWidget {
     pub workspaces: Vec<Rc<RefCell<Workspace>>>,
     pub current_workspace: Option<Rc<RefCell<Workspace>>>,

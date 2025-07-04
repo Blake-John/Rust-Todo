@@ -1,9 +1,9 @@
 use std::cell::{Ref, RefCell};
-use std::default;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use crossterm::event;
+use futures::{FutureExt, StreamExt};
 use ratatui::layout::Rect;
 use ratatui::text;
 use ratatui::widgets::Block;
@@ -65,9 +65,10 @@ impl Ui {
         f.render_widget(&mut self.workspace, layouts[0]);
     }
 
-    pub fn add_item(&mut self, terminal: &mut DefaultTerminal) -> String {
+    pub async fn add_item(&mut self, terminal: &mut DefaultTerminal) -> String {
         let mut textarea = TextArea::default();
         let mut item = String::new();
+        let mut evtstream = event::EventStream::new();
         loop {
             let _ = terminal.draw(|f| {
                 self.update(f);
@@ -76,6 +77,21 @@ impl Ui {
                 textarea.set_block(block);
                 f.render_widget(&textarea, area);
             });
+            let event = evtstream.next().fuse();
+            tokio::select! {
+                maybeevent = event => {
+                    match maybeevent {
+                        Some(Ok(evt)) => {
+
+                        },
+                        None => {},
+                        _ => {break;}
+
+                    }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+
+                }
+            }
             if let event::Event::Key(keyevt) = event::read().unwrap() {
                 if let event::KeyEventKind::Press = keyevt.kind {
                     match keyevt.code {
@@ -194,7 +210,10 @@ impl Ui {
                     }
                     UiMessage::WAction(waction) => match waction {
                         WidgetAction::AddWorkspace => {
-                            let result = self.add_item(terminal);
+                            let rt = tokio::runtime::Builder::new_current_thread()
+                                .build()
+                                .unwrap();
+                            let result = rt.block_on(self.add_item(terminal));
                             if !result.is_empty() {
                                 self.workspace
                                     .workspaces
@@ -210,7 +229,10 @@ impl Ui {
                             let _result = self.add_item(terminal);
                         }
                         WidgetAction::AddWorkspaceChild => {
-                            let result = self.add_item(terminal);
+                            let rt = tokio::runtime::Builder::new_current_thread()
+                                .build()
+                                .unwrap();
+                            let result = rt.block_on(self.add_item(terminal));
                             if !result.is_empty() {
                                 if let Some(cw) = &self.workspace.current_workspace {
                                     let mut cw_mut = cw.borrow_mut();
@@ -257,6 +279,8 @@ impl Ui {
                         }
                     },
                 }
+            } else {
+                break;
             }
         }
     }
