@@ -4,8 +4,8 @@ use tokio::sync::mpsc;
 use crossterm::event;
 
 use crate::app::{
-    appstate::{AppState, CurrentMode, Message},
-    ui::UiMessage,
+    appstate::{AppState, CurrentFocus, CurrentMode, Message},
+    ui::{UiMessage, WidgetAction},
 };
 
 mod appstate;
@@ -45,14 +45,14 @@ impl App {
             rt.block_on(handle_msg(rx, ui_tx_in_msg, apps_in_msghand));
         });
 
-        let mut ui = ui::Ui::new(ui_rx);
         let apps_in_ui = self.appstate.clone();
         let _ui_handle = std::thread::spawn(move || {
+            let mut ui = ui::Ui::new(ui_rx);
             let rt = tokio::runtime::Builder::new_current_thread()
                 .build()
                 .unwrap();
 
-            rt.block_on(ui.hanlde_uimsg(&mut terminal, apps_in_ui));
+            rt.block_on(ui.handle_uimsg(&mut terminal, apps_in_ui));
         });
 
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -75,18 +75,37 @@ impl App {
 async fn handle_keyevt(tx: mpsc::Sender<Message>, appstate: Arc<Mutex<AppState>>) {
     loop {
         if let event::Event::Key(key_evt) = event::read().unwrap() {
-            let apps = appstate.lock().unwrap();
-            match apps.current_mode {
-                CurrentMode::Normal => match key_evt.code {
-                    event::KeyCode::Char('q') => {
-                        let _ = tx.send(Message::Exit).await;
-                        break;
+            if let event::KeyEventKind::Press = key_evt.kind {
+                let apps = appstate.lock().unwrap();
+                match apps.current_mode {
+                    CurrentMode::Normal => match key_evt.code {
+                        event::KeyCode::Char('q') => {
+                            let _ = tx.send(Message::Exit).await;
+                            break;
+                        }
+                        event::KeyCode::Char('a') => {
+                            let _ = tx.send(Message::AddItem).await;
+                        }
+                        event::KeyCode::Char('i') => {
+                            let _ = tx.send(Message::AddChild).await;
+                        }
+                        event::KeyCode::Char('j') => {
+                            let _ = tx.send(Message::MoveDown).await;
+                        }
+                        event::KeyCode::Char('k') => {
+                            let _ = tx.send(Message::MoveUp).await;
+                        }
+                        _ => {}
+                    },
+                    CurrentMode::Insert => {
+                        // match key_evt.code {
+                        //     event::KeyCode::Esc => {
+                        //         let _ = tx.send(Message::ChangeMode(CurrentMode::Normal)).await;
+                        //     }
+                        //     _ => {}
+                        // }
                     }
-                    _ => {}
-                },
-                CurrentMode::Insert => match key_evt.code {
-                    _ => {}
-                },
+                }
             }
         }
     }
@@ -103,6 +122,47 @@ async fn handle_msg(
                 let mut apps = appstate.lock().unwrap();
                 apps.exit = true;
                 break;
+            }
+            Message::AddItem => {
+                let mut apps = appstate.lock().unwrap();
+                match apps.current_focus {
+                    CurrentFocus::Workspace => {
+                        let _ = ui_tx
+                            .send(UiMessage::WAction(WidgetAction::AddWorkspace))
+                            .await;
+                        apps.current_mode = CurrentMode::Insert;
+                    }
+                    CurrentFocus::TodoList => {
+                        let _ = ui_tx
+                            .send(UiMessage::WAction(WidgetAction::AddTodoList))
+                            .await;
+                        apps.current_mode = CurrentMode::Insert;
+                    }
+                }
+            }
+            Message::AddChild => {
+                let mut apps = appstate.lock().unwrap();
+                match apps.current_focus {
+                    CurrentFocus::Workspace => {
+                        let _ = ui_tx
+                            .send(UiMessage::WAction(WidgetAction::AddWorkspaceChild))
+                            .await;
+                        apps.current_mode = CurrentMode::Insert;
+                    }
+                    CurrentFocus::TodoList => {}
+                }
+            }
+            Message::ChangeMode(mode) => {
+                let mut apps = appstate.lock().unwrap();
+                apps.current_mode = mode;
+            }
+            Message::MoveUp => {
+                let _ = ui_tx.send(UiMessage::WAction(WidgetAction::SelectUp)).await;
+            }
+            Message::MoveDown => {
+                let _ = ui_tx
+                    .send(UiMessage::WAction(WidgetAction::SelectDown))
+                    .await;
             }
             _ => {}
         }
