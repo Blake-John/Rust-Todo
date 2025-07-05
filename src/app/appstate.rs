@@ -18,7 +18,13 @@ impl AppState {
 #[derive(Debug)]
 pub enum Message {
     Update,
-    ChangeMode,
+    ChangeMode(CurrentMode),
+    ChangeFocus(CurrentFocus),
+    SelectWorkspace,
+    AddItem,
+    AddChild,
+    MoveUp,
+    MoveDown,
     Exit,
 }
 

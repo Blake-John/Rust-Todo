@@ -1,34 +1,87 @@
+use std::cell::{Ref, RefCell};
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
+use crossterm::event;
+use futures::{FutureExt, StreamExt};
+use ratatui::layout::Rect;
+use ratatui::text;
+use ratatui::widgets::Block;
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Layout},
-    style::Stylize,
-    widgets::{Block, List, ListItem, StatefulWidget, Widget},
 };
 use tokio::sync::mpsc;
+use tui_textarea::{Input, Key, TextArea};
 
-use crate::app::appstate::AppState;
+use crate::app::appstate::{AppState, CurrentFocus, CurrentMode};
+use crate::app::ui::todolistwidget::{Task, TodoList, TodoWidget};
+use crate::app::ui::workspacewidget::Workspace;
+
+mod todolistwidget;
+mod workspacewidget;
+use workspacewidget::WorkspaceWidget;
 
 #[derive(Debug)]
 pub enum UiMessage {
     Update,
     UpdateUi,
+    WAction(WidgetAction),
+}
+
+#[derive(Debug)]
+pub enum WidgetAction {
+    AddWorkspace,
+    AddWorkspaceChild,
+    AddTask,
+    AddTaskChild,
+    SelectUp,
+    SelectDown,
+    FocusWorkspace,
+    FocusTodolist,
+    EnterWorkspace,
+}
+
+#[derive(Debug)]
+pub enum SelectBF {
+    Back,
+    Forward,
+}
+
+#[derive(Debug)]
+pub enum InputEvent {
+    InsertChar(char),
+    Backspace,
+    Left,
+    Right,
+    Enter,
+    Esc,
 }
 
 #[derive(Debug)]
 pub struct Ui {
     pub workspace: WorkspaceWidget,
-    pub todolist: (),
+    pub todolist: TodoWidget,
     pub ui_rx: mpsc::Receiver<UiMessage>,
+    pub input_rx: Arc<Mutex<mpsc::Receiver<InputEvent>>>,
+}
+
+pub trait SelectAction<T> {
+    fn get_selected_bf(
+        current_target: &Option<Rc<RefCell<T>>>,
+        targets: &Vec<Rc<RefCell<T>>>,
+        bf: SelectBF,
+    ) -> Option<Rc<RefCell<T>>>;
+    fn get_flattened(target: &Vec<Rc<RefCell<T>>>) -> Vec<Rc<RefCell<T>>>;
 }
 
 impl Ui {
-    pub fn new(ui_rx: mpsc::Receiver<UiMessage>) -> Self {
+    pub fn new(ui_rx: mpsc::Receiver<UiMessage>, input_rx: mpsc::Receiver<InputEvent>) -> Self {
         Self {
             workspace: WorkspaceWidget::new(),
-            todolist: (),
+            todolist: TodoWidget::new(),
             ui_rx,
+            input_rx: Arc::new(Mutex::new(input_rx)),
         }
     }
 
@@ -37,9 +90,125 @@ impl Ui {
             .split(f.area());
 
         f.render_widget(&mut self.workspace, layouts[0]);
+        f.render_widget(&mut self.todolist, layouts[1]);
     }
 
-    pub async fn hanlde_uimsg(
+    pub async fn add_item(
+        &mut self,
+        input_rx: Arc<Mutex<mpsc::Receiver<InputEvent>>>,
+        terminal: &mut DefaultTerminal,
+    ) -> String {
+        let mut textarea = TextArea::default();
+        let mut item = String::new();
+        let mut receiver = input_rx.lock().unwrap();
+        loop {
+            let _ = terminal.draw(|f| {
+                self.update(f);
+                let area = Ui::get_popup_window(50, 20, f);
+                let block = Block::bordered().title(" Add Item ");
+                textarea.set_block(block);
+                f.render_widget(&textarea, area);
+            });
+            if let Some(evt) = receiver.recv().await {
+                match evt {
+                    InputEvent::Esc => break,
+                    InputEvent::InsertChar(c) => {
+                        textarea.insert_char(c);
+                    }
+                    InputEvent::Backspace => {
+                        textarea.delete_char();
+                    }
+                    InputEvent::Right => {
+                        textarea.move_cursor(tui_textarea::CursorMove::Back);
+                    }
+                    InputEvent::Left => {
+                        textarea.move_cursor(tui_textarea::CursorMove::Forward);
+                    }
+                    InputEvent::Enter => {
+                        let content = textarea.to_owned().into_lines();
+                        content.iter().for_each(|s| {
+                            item += s;
+                        });
+                        break;
+                    }
+                }
+            }
+        }
+
+        item
+    }
+
+    pub fn get_popup_window(percent_x: u16, percent_y: u16, f: &mut Frame) -> Rect {
+        let layout1 = Layout::horizontal([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(f.area());
+
+        Layout::vertical([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(layout1[1])[1]
+    }
+
+    // pub fn get_flattened(workspaces: &Vec<Rc<RefCell<Workspace>>>) -> Vec<Rc<RefCell<Workspace>>> {
+    //     let mut result = Vec::<Rc<RefCell<Workspace>>>::new();
+    //     workspaces.iter().for_each(|ws| {
+    //         result.push(ws.clone());
+    //         let ws_ = ws.borrow();
+    //         if !ws_.children.is_empty() {
+    //             let child = Ui::get_flattened(&ws_.children);
+    //             result.extend(child);
+    //         }
+    //     });
+    //
+    //     result
+    // }
+    //
+    // pub fn get_selected_bf(
+    //     current_ws: &Option<Rc<RefCell<Workspace>>>,
+    //     workspaces: &Vec<Rc<RefCell<Workspace>>>,
+    //     bf: SelectBF,
+    // ) -> Option<Rc<RefCell<Workspace>>> {
+    //     let ws_list = Ui::get_flattened(workspaces);
+    //     if workspaces.len() > 0 {
+    //         if current_ws.is_none() {
+    //             Some(ws_list[0].clone())
+    //         } else {
+    //             let mut target = 0;
+    //
+    //             if let Some(cw) = current_ws {
+    //                 let (i, _) = ws_list
+    //                     .iter()
+    //                     .enumerate()
+    //                     .find(|(i, ws)| ws.borrow().desc == cw.borrow().desc)
+    //                     .unwrap();
+    //                 target = i;
+    //             }
+    //             match bf {
+    //                 SelectBF::Back => {
+    //                     if target != 0 {
+    //                         target -= 1;
+    //                     }
+    //                 }
+    //                 SelectBF::Forward => {
+    //                     if target < ws_list.len() - 1 {
+    //                         target += 1;
+    //                     }
+    //                 }
+    //             }
+    //
+    //             Some(ws_list[target].clone())
+    //         }
+    //     } else {
+    //         None
+    //     }
+    // }
+
+    pub async fn handle_uimsg(
         &mut self,
         terminal: &mut DefaultTerminal,
         appstate: Arc<Mutex<AppState>>,
@@ -53,59 +222,147 @@ impl Ui {
                     UiMessage::UpdateUi => {
                         let _result = terminal.draw(|f| self.update(f));
                     }
+                    UiMessage::WAction(waction) => match waction {
+                        WidgetAction::FocusWorkspace => {
+                            self.workspace.focused = true;
+                            self.todolist.focused = false;
+                            let _result = terminal.draw(|f| self.update(f));
+                        }
+                        WidgetAction::FocusTodolist => {
+                            self.workspace.focused = false;
+                            self.todolist.focused = true;
+                            let _result = terminal.draw(|f| self.update(f));
+                        }
+                        WidgetAction::AddWorkspace => {
+                            let input_rx = self.input_rx.clone();
+                            let result = self.add_item(input_rx, terminal).await;
+                            if !result.is_empty() {
+                                let ws = Rc::new(RefCell::new(Workspace::new(result)));
+                                let ws_id = ws.borrow().id.clone();
+                                self.workspace.add_workspace(ws);
+                                self.todolist
+                                    .add_list(Rc::new(RefCell::new(TodoList::new(ws_id))));
+                            }
+                            let _ = terminal.draw(|f| {
+                                self.update(f);
+                            });
+                            let mut apps = appstate.lock().unwrap();
+                            apps.current_mode = CurrentMode::Normal;
+                        }
+                        WidgetAction::AddWorkspaceChild => {
+                            let input_rx = self.input_rx.clone();
+                            let result = self.add_item(input_rx, terminal).await;
+                            if !result.is_empty() {
+                                let workspace = Rc::new(RefCell::new(Workspace::new(result)));
+                                let ws_id = workspace.borrow().id.to_owned();
+                                self.workspace.add_child_workspace(workspace);
+                                self.todolist
+                                    .add_list(Rc::new(RefCell::new(TodoList::new(ws_id))));
+                            }
+                            let _ = terminal.draw(|f| {
+                                self.update(f);
+                            });
+                            let mut apps = appstate.lock().unwrap();
+                            apps.current_mode = CurrentMode::Normal;
+                        }
+                        WidgetAction::AddTask => {
+                            let input_rx = self.input_rx.clone();
+                            let result = self.add_item(input_rx, terminal).await;
+                            if !result.is_empty() {
+                                if let Some(ctl) = &self.todolist.current_todolist {
+                                    let mut ctl_mut = ctl.borrow_mut();
+                                    ctl_mut
+                                        .add_task(Rc::new(RefCell::new(Task::new(result, None))));
+                                }
+                            }
+                            let _ = terminal.draw(|f| {
+                                self.update(f);
+                            });
+                            let mut apps = appstate.lock().unwrap();
+                            apps.current_mode = CurrentMode::Normal;
+                        }
+                        WidgetAction::AddTaskChild => {
+                            let input_rx = self.input_rx.clone();
+                            let result = self.add_item(input_rx, terminal).await;
+                            if !result.is_empty() {
+                                if let Some(ctl) = &self.todolist.current_todolist {
+                                    let mut ctl_mut = ctl.borrow_mut();
+                                    ctl_mut.add_child_task(Rc::new(RefCell::new(Task::new(
+                                        result, None,
+                                    ))));
+                                }
+                            }
+                            let _ = terminal.draw(|f| {
+                                self.update(f);
+                            });
+                            let mut apps = appstate.lock().unwrap();
+                            apps.current_mode = CurrentMode::Normal;
+                        }
+                        WidgetAction::EnterWorkspace => {
+                            let mut apps = appstate.lock().unwrap();
+                            apps.current_focus = CurrentFocus::TodoList;
+                            self.workspace.focused = false;
+                            self.todolist.focused = true;
+                            self.todolist
+                                .change_current_list(&self.workspace.current_workspace);
+                            let _result = terminal.draw(|f| self.update(f));
+                        }
+                        WidgetAction::SelectUp => {
+                            let apps = appstate.lock().unwrap();
+                            match apps.current_focus {
+                                CurrentFocus::Workspace => {
+                                    self.workspace.current_workspace = Workspace::get_selected_bf(
+                                        &self.workspace.current_workspace,
+                                        &self.workspace.workspaces,
+                                        SelectBF::Back,
+                                    );
+                                    let _ = terminal.draw(|f| self.update(f));
+                                }
+                                CurrentFocus::TodoList => {
+                                    if let Some(clist) = &self.todolist.current_todolist {
+                                        let mut clist_mut = clist.borrow_mut();
+                                        let tasks = &clist_mut.tasks;
+                                        let ctask = &clist_mut.current_task;
+                                        clist_mut.current_task =
+                                            TodoList::get_selected_bf(ctask, tasks, SelectBF::Back);
+                                    }
+
+                                    let _ = terminal.draw(|f| self.update(f));
+                                }
+                            }
+                        }
+                        WidgetAction::SelectDown => {
+                            let apps = appstate.lock().unwrap();
+                            match apps.current_focus {
+                                CurrentFocus::Workspace => {
+                                    self.workspace.current_workspace = Workspace::get_selected_bf(
+                                        &self.workspace.current_workspace,
+                                        &self.workspace.workspaces,
+                                        SelectBF::Forward,
+                                    );
+                                    let _ = terminal.draw(|f| self.update(f));
+                                }
+                                CurrentFocus::TodoList => {
+                                    if let Some(clist) = &self.todolist.current_todolist {
+                                        let mut clist_mut = clist.borrow_mut();
+                                        let tasks = &clist_mut.tasks;
+                                        let ctask = &clist_mut.current_task;
+                                        clist_mut.current_task = TodoList::get_selected_bf(
+                                            ctask,
+                                            tasks,
+                                            SelectBF::Forward,
+                                        );
+                                    }
+
+                                    let _ = terminal.draw(|f| self.update(f));
+                                }
+                            }
+                        }
+                    },
                 }
+            } else {
+                break;
             }
         }
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct Workspace {
-    pub desc: String,
-    pub selected: bool,
-    pub children: Vec<Arc<Workspace>>,
-}
-
-impl Workspace {
-    fn add_child(&mut self, workspace: Arc<Self>) {
-        self.children.push(workspace);
-    }
-
-    fn add_children(&mut self, workspaces: Vec<Arc<Self>>) {
-        workspaces.iter().for_each(|workspace| {
-            self.add_child(workspace.clone());
-        });
-    }
-}
-
-#[derive(Debug)]
-struct WorkspaceWidget {
-    workspaces: Vec<Arc<Workspace>>,
-    current_workspace: Option<Arc<Workspace>>,
-}
-
-impl WorkspaceWidget {
-    fn new() -> Self {
-        Self {
-            workspaces: Vec::<Arc<Workspace>>::new(),
-            current_workspace: None,
-        }
-    }
-}
-
-impl Widget for &mut WorkspaceWidget {
-    fn render(self, area: ratatui::prelude::Rect, buf: &mut ratatui::prelude::Buffer)
-    where
-        Self: Sized,
-    {
-        let mut workspace_list = Vec::<ListItem>::new();
-        self.workspaces.iter().for_each(|workspace| {
-            workspace_list.push(ListItem::new(workspace.desc.clone().green()));
-        });
-
-        let workspace_block = Block::bordered().title(" Workspace ".green()).green();
-
-        let list_widget = List::new(workspace_list).block(workspace_block);
-        Widget::render(list_widget, area, buf);
     }
 }

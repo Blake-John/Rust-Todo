@@ -1,11 +1,12 @@
+use serde_json::ser;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 
 use crossterm::event;
 
 use crate::app::{
-    appstate::{AppState, CurrentMode, Message},
-    ui::UiMessage,
+    appstate::{AppState, CurrentFocus, CurrentMode, Message},
+    ui::{InputEvent, UiMessage, WidgetAction},
 };
 
 mod appstate;
@@ -27,13 +28,14 @@ impl App {
         let mut terminal = ratatui::init();
         let (tx, rx) = mpsc::channel::<Message>(10);
         let (ui_tx, ui_rx) = mpsc::channel::<UiMessage>(10);
+        let (input_tx, input_rx) = mpsc::channel::<InputEvent>(10);
 
         let apps_in_keyhand = self.appstate.clone();
         let key_handle = std::thread::spawn(move || {
             let rt = tokio::runtime::Builder::new_current_thread()
                 .build()
                 .unwrap();
-            rt.block_on(handle_keyevt(tx, apps_in_keyhand));
+            rt.block_on(handle_keyevt(tx, input_tx, apps_in_keyhand));
         });
 
         let apps_in_msghand = self.appstate.clone();
@@ -45,14 +47,21 @@ impl App {
             rt.block_on(handle_msg(rx, ui_tx_in_msg, apps_in_msghand));
         });
 
-        let mut ui = ui::Ui::new(ui_rx);
         let apps_in_ui = self.appstate.clone();
         let _ui_handle = std::thread::spawn(move || {
+            let mut ui = ui::Ui::new(ui_rx, input_rx);
             let rt = tokio::runtime::Builder::new_current_thread()
                 .build()
                 .unwrap();
 
-            rt.block_on(ui.hanlde_uimsg(&mut terminal, apps_in_ui));
+            rt.block_on(ui.handle_uimsg(&mut terminal, apps_in_ui));
+            let path = "data.json";
+            let ws = serde_json::to_value(&ui.workspace).unwrap();
+            let todo = serde_json::to_value(&ui.todolist).unwrap();
+            let mut result = ws.as_object().unwrap().clone();
+            result.extend(todo.as_object().unwrap().to_owned());
+            let result = serde_json::to_string_pretty(&ws).unwrap();
+            let _ = std::fs::write(path, result);
         });
 
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -67,26 +76,80 @@ impl App {
             .join()
             .map_err(|_| errors::Errors::AppError)
             .unwrap();
+        let result = _ui_handle
+            .join()
+            .map_err(|_| errors::Errors::UiError)
+            .unwrap();
+
         ratatui::restore();
         Ok(result)
     }
 }
 
-async fn handle_keyevt(tx: mpsc::Sender<Message>, appstate: Arc<Mutex<AppState>>) {
+async fn handle_keyevt(
+    tx: mpsc::Sender<Message>,
+    input_tx: mpsc::Sender<InputEvent>,
+    appstate: Arc<Mutex<AppState>>,
+) {
     loop {
         if let event::Event::Key(key_evt) = event::read().unwrap() {
-            let apps = appstate.lock().unwrap();
-            match apps.current_mode {
-                CurrentMode::Normal => match key_evt.code {
-                    event::KeyCode::Char('q') => {
-                        let _ = tx.send(Message::Exit).await;
-                        break;
-                    }
-                    _ => {}
-                },
-                CurrentMode::Insert => match key_evt.code {
-                    _ => {}
-                },
+            if let event::KeyEventKind::Press = key_evt.kind {
+                let apps = appstate.lock().unwrap();
+                match apps.current_mode {
+                    CurrentMode::Normal => match key_evt.code {
+                        event::KeyCode::Char('q') => {
+                            let _ = tx.send(Message::Exit).await;
+                            break;
+                        }
+                        event::KeyCode::Char('a') => {
+                            let _ = tx.send(Message::AddItem).await;
+                        }
+                        event::KeyCode::Char('i') => {
+                            let _ = tx.send(Message::AddChild).await;
+                        }
+                        event::KeyCode::Char('j') => {
+                            let _ = tx.send(Message::MoveDown).await;
+                        }
+                        event::KeyCode::Char('k') => {
+                            let _ = tx.send(Message::MoveUp).await;
+                        }
+                        event::KeyCode::Tab => {
+                            let _ = tx
+                                .send(Message::ChangeFocus(match apps.current_focus {
+                                    CurrentFocus::Workspace => CurrentFocus::TodoList,
+                                    CurrentFocus::TodoList => CurrentFocus::Workspace,
+                                }))
+                                .await;
+                        }
+                        event::KeyCode::Enter => {
+                            if let CurrentFocus::Workspace = apps.current_focus {
+                                let _ = tx.send(Message::SelectWorkspace).await;
+                            }
+                        }
+                        _ => {}
+                    },
+                    CurrentMode::Insert => match key_evt.code {
+                        event::KeyCode::Char(c) => {
+                            let _ = input_tx.send(InputEvent::InsertChar(c)).await;
+                        }
+                        event::KeyCode::Backspace => {
+                            let _ = input_tx.send(InputEvent::Backspace).await;
+                        }
+                        event::KeyCode::Esc => {
+                            let _ = input_tx.send(InputEvent::Esc).await;
+                        }
+                        event::KeyCode::Enter => {
+                            let _ = input_tx.send(InputEvent::Enter).await;
+                        }
+                        event::KeyCode::Left => {
+                            let _ = input_tx.send(InputEvent::Left).await;
+                        }
+                        event::KeyCode::Right => {
+                            let _ = input_tx.send(InputEvent::Right).await;
+                        }
+                        _ => {}
+                    },
+                }
             }
         }
     }
@@ -103,6 +166,65 @@ async fn handle_msg(
                 let mut apps = appstate.lock().unwrap();
                 apps.exit = true;
                 break;
+            }
+            Message::AddItem => {
+                let mut apps = appstate.lock().unwrap();
+                match apps.current_focus {
+                    CurrentFocus::Workspace => {
+                        let _ = ui_tx
+                            .send(UiMessage::WAction(WidgetAction::AddWorkspace))
+                            .await;
+                        apps.current_mode = CurrentMode::Insert;
+                    }
+                    CurrentFocus::TodoList => {
+                        let _ = ui_tx.send(UiMessage::WAction(WidgetAction::AddTask)).await;
+                        apps.current_mode = CurrentMode::Insert;
+                    }
+                }
+            }
+            Message::AddChild => {
+                let mut apps = appstate.lock().unwrap();
+                match apps.current_focus {
+                    CurrentFocus::Workspace => {
+                        let _ = ui_tx
+                            .send(UiMessage::WAction(WidgetAction::AddWorkspaceChild))
+                            .await;
+                        apps.current_mode = CurrentMode::Insert;
+                    }
+                    CurrentFocus::TodoList => {
+                        let _ = ui_tx
+                            .send(UiMessage::WAction(WidgetAction::AddTaskChild))
+                            .await;
+                        apps.current_mode = CurrentMode::Insert;
+                    }
+                }
+            }
+            Message::ChangeMode(mode) => {
+                let mut apps = appstate.lock().unwrap();
+                apps.current_mode = mode;
+            }
+            Message::ChangeFocus(focus) => {
+                let mut apps = appstate.lock().unwrap();
+                apps.current_focus = focus;
+                let _ = ui_tx
+                    .send(match apps.current_focus {
+                        CurrentFocus::Workspace => UiMessage::WAction(WidgetAction::FocusWorkspace),
+                        CurrentFocus::TodoList => UiMessage::WAction(WidgetAction::FocusTodolist),
+                    })
+                    .await;
+            }
+            Message::SelectWorkspace => {
+                let _ = ui_tx
+                    .send(UiMessage::WAction(WidgetAction::EnterWorkspace))
+                    .await;
+            }
+            Message::MoveUp => {
+                let _ = ui_tx.send(UiMessage::WAction(WidgetAction::SelectUp)).await;
+            }
+            Message::MoveDown => {
+                let _ = ui_tx
+                    .send(UiMessage::WAction(WidgetAction::SelectDown))
+                    .await;
             }
             _ => {}
         }
