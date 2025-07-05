@@ -1,17 +1,110 @@
 {
-  "current_workspace": {
-    "children": [],
-    "desc": "D-robot",
-    "expanded": true,
-    "id": "c0965028-5318-4328-a596-4385f84cd1a2"
-  },
-  "focused": false,
-  "workspaces": [
-    {
-      "children": [],
-      "desc": "D-robot",
+  "workspace": {
+    "workspaces": [
+      {
+        "desc": "computational physics",
+        "id": "c070e788-6b22-4b9f-98a7-dd231598438a",
+        "expanded": true,
+        "children": []
+      },
+      {
+        "desc": "methemacital method of physics",
+        "id": "609d0ecb-475b-408f-8b53-5a6404d9318f",
+        "expanded": true,
+        "children": []
+      }
+    ],
+    "current_workspace": {
+      "desc": "methemacital method of physics",
+      "id": "609d0ecb-475b-408f-8b53-5a6404d9318f",
       "expanded": true,
-      "id": "c0965028-5318-4328-a596-4385f84cd1a2"
-    }
-  ]
+      "children": []
+    },
+    "focused": false
+  },
+  "todolist": {
+    "todolists": [
+      {
+        "workspace": "c070e788-6b22-4b9f-98a7-dd231598438a",
+        "tasks": [
+          {
+            "desc": "review theorem",
+            "status": "Todo",
+            "expanded": true,
+            "due": null,
+            "children": [],
+            "id": "ff57c8c5-8d9d-4b42-9fe2-2f8ce0b4936f"
+          },
+          {
+            "desc": "review code",
+            "status": "Todo",
+            "expanded": true,
+            "due": null,
+            "children": [
+              {
+                "desc": "simulation of dipole",
+                "status": "Todo",
+                "expanded": true,
+                "due": null,
+                "children": [],
+                "id": "efd2d4b5-7188-4363-8ba1-91e19bde5be1"
+              }
+            ],
+            "id": "10db40d2-b1f6-43b4-864d-e0c1d9439e1f"
+          }
+        ],
+        "current_task": {
+          "desc": "simulation of dipole",
+          "status": "Todo",
+          "expanded": true,
+          "due": null,
+          "children": [],
+          "id": "efd2d4b5-7188-4363-8ba1-91e19bde5be1"
+        }
+      },
+      {
+        "workspace": "609d0ecb-475b-408f-8b53-5a6404d9318f",
+        "tasks": [
+          {
+            "desc": "review homework",
+            "status": "Todo",
+            "expanded": true,
+            "due": null,
+            "children": [],
+            "id": "cf967da9-dcd2-4ef5-8e85-5a7ad434fe0e"
+          }
+        ],
+        "current_task": {
+          "desc": "review homework",
+          "status": "Todo",
+          "expanded": true,
+          "due": null,
+          "children": [],
+          "id": "cf967da9-dcd2-4ef5-8e85-5a7ad434fe0e"
+        }
+      }
+    ],
+    "current_todolist": {
+      "workspace": "609d0ecb-475b-408f-8b53-5a6404d9318f",
+      "tasks": [
+        {
+          "desc": "review homework",
+          "status": "Todo",
+          "expanded": true,
+          "due": null,
+          "children": [],
+          "id": "cf967da9-dcd2-4ef5-8e85-5a7ad434fe0e"
+        }
+      ],
+      "current_task": {
+        "desc": "review homework",
+        "status": "Todo",
+        "expanded": true,
+        "due": null,
+        "children": [],
+        "id": "cf967da9-dcd2-4ef5-8e85-5a7ad434fe0e"
+      }
+    },
+    "focused": true
+  }
 }

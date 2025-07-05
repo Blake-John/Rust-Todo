@@ -1,17 +1,21 @@
-use serde_json::ser;
-use std::sync::{Arc, Mutex};
+use std::{
+    path::Path,
+    sync::{Arc, Mutex},
+};
 use tokio::sync::mpsc;
 
 use crossterm::event;
 
 use crate::app::{
     appstate::{AppState, CurrentFocus, CurrentMode, Message},
+    data::Datas,
     ui::{InputEvent, UiMessage, WidgetAction},
 };
 
-mod appstate;
-mod errors;
-mod ui;
+pub mod appstate;
+pub mod data;
+pub mod errors;
+pub mod ui;
 
 #[derive(Debug)]
 pub struct App {
@@ -48,20 +52,23 @@ impl App {
         });
 
         let apps_in_ui = self.appstate.clone();
-        let _ui_handle = std::thread::spawn(move || {
+        let ui_handle = std::thread::spawn(move || -> Result<(), errors::Errors> {
             let mut ui = ui::Ui::new(ui_rx, input_rx);
+            let path = Path::new("data.json");
+            let data = data::load_data(path)?;
+            ui.workspace = data.workspace;
+            ui.todolist = data.todolist;
             let rt = tokio::runtime::Builder::new_current_thread()
                 .build()
                 .unwrap();
 
             rt.block_on(ui.handle_uimsg(&mut terminal, apps_in_ui));
-            let path = "data.json";
-            let ws = serde_json::to_value(&ui.workspace).unwrap();
-            let todo = serde_json::to_value(&ui.todolist).unwrap();
-            let mut result = ws.as_object().unwrap().clone();
-            result.extend(todo.as_object().unwrap().to_owned());
-            let result = serde_json::to_string_pretty(&ws).unwrap();
-            let _ = std::fs::write(path, result);
+            let datas = Datas {
+                workspace: ui.workspace,
+                todolist: ui.todolist,
+            };
+            let result = data::save_data(path, &datas);
+            result
         });
 
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -72,17 +79,17 @@ impl App {
             let _ = ui_tx.send(UiMessage::UpdateUi).await;
         });
 
-        let result = key_handle
+        let _result = key_handle
             .join()
             .map_err(|_| errors::Errors::AppError)
             .unwrap();
-        let result = _ui_handle
+        let result = ui_handle
             .join()
             .map_err(|_| errors::Errors::UiError)
             .unwrap();
 
         ratatui::restore();
-        Ok(result)
+        result
     }
 }
 

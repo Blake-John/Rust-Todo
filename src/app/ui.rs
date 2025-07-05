@@ -1,25 +1,22 @@
-use std::cell::{Ref, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use crossterm::event;
-use futures::{FutureExt, StreamExt};
 use ratatui::layout::Rect;
-use ratatui::text;
-use ratatui::widgets::Block;
+use ratatui::widgets::{Block, ListState};
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Layout},
 };
 use tokio::sync::mpsc;
-use tui_textarea::{Input, Key, TextArea};
+use tui_textarea::TextArea;
 
 use crate::app::appstate::{AppState, CurrentFocus, CurrentMode};
 use crate::app::ui::todolistwidget::{Task, TodoList, TodoWidget};
 use crate::app::ui::workspacewidget::Workspace;
 
-mod todolistwidget;
-mod workspacewidget;
+pub mod todolistwidget;
+pub mod workspacewidget;
 use workspacewidget::WorkspaceWidget;
 
 #[derive(Debug)]
@@ -70,6 +67,7 @@ pub trait SelectAction<T> {
     fn get_selected_bf(
         current_target: &Option<Rc<RefCell<T>>>,
         targets: &Vec<Rc<RefCell<T>>>,
+        state: &mut ListState,
         bf: SelectBF,
     ) -> Option<Rc<RefCell<T>>>;
     fn get_flattened(target: &Vec<Rc<RefCell<T>>>) -> Vec<Rc<RefCell<T>>>;
@@ -314,6 +312,7 @@ impl Ui {
                                     self.workspace.current_workspace = Workspace::get_selected_bf(
                                         &self.workspace.current_workspace,
                                         &self.workspace.workspaces,
+                                        &mut self.workspace.ws_state,
                                         SelectBF::Back,
                                     );
                                     let _ = terminal.draw(|f| self.update(f));
@@ -321,10 +320,15 @@ impl Ui {
                                 CurrentFocus::TodoList => {
                                     if let Some(clist) = &self.todolist.current_todolist {
                                         let mut clist_mut = clist.borrow_mut();
-                                        let tasks = &clist_mut.tasks;
-                                        let ctask = &clist_mut.current_task;
-                                        clist_mut.current_task =
-                                            TodoList::get_selected_bf(ctask, tasks, SelectBF::Back);
+                                        let tasks = clist_mut.tasks.clone();
+                                        let ctask = clist_mut.current_task.clone();
+                                        // let mut state = &mut clist.borrow_mut().state;
+                                        clist_mut.current_task = TodoList::get_selected_bf(
+                                            &ctask,
+                                            &tasks,
+                                            &mut clist_mut.state,
+                                            SelectBF::Back,
+                                        );
                                     }
 
                                     let _ = terminal.draw(|f| self.update(f));
@@ -338,6 +342,7 @@ impl Ui {
                                     self.workspace.current_workspace = Workspace::get_selected_bf(
                                         &self.workspace.current_workspace,
                                         &self.workspace.workspaces,
+                                        &mut self.workspace.ws_state,
                                         SelectBF::Forward,
                                     );
                                     let _ = terminal.draw(|f| self.update(f));
@@ -345,11 +350,13 @@ impl Ui {
                                 CurrentFocus::TodoList => {
                                     if let Some(clist) = &self.todolist.current_todolist {
                                         let mut clist_mut = clist.borrow_mut();
-                                        let tasks = &clist_mut.tasks;
-                                        let ctask = &clist_mut.current_task;
+                                        let tasks = clist_mut.tasks.clone();
+                                        let ctask = clist_mut.current_task.clone();
+                                        // let state = &mut clist_mut.state;
                                         clist_mut.current_task = TodoList::get_selected_bf(
-                                            ctask,
-                                            tasks,
+                                            &ctask,
+                                            &tasks,
+                                            &mut clist_mut.state,
                                             SelectBF::Forward,
                                         );
                                     }

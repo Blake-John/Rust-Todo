@@ -1,7 +1,4 @@
 mod app;
-use serde::{Deserialize, Serialize};
-use serde_json;
-use std::fs;
 
 fn main() {
     let app = app::App::new();

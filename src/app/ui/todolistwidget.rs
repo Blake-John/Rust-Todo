@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use chrono::{DateTime, Local};
 use ratatui::{
     style::{Color, Style, Stylize},
-    widgets::{Block, List, ListItem, Widget},
+    widgets::{Block, List, ListItem, ListState, StatefulWidget, Widget},
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -49,6 +49,8 @@ pub struct TodoList {
     pub workspace: Uuid,
     pub tasks: Vec<Rc<RefCell<Task>>>,
     pub current_task: Option<Rc<RefCell<Task>>>,
+    #[serde(skip_serializing, skip_deserializing)]
+    pub state: ListState,
 }
 
 impl TodoList {
@@ -57,6 +59,7 @@ impl TodoList {
             workspace: ws_id,
             tasks: Vec::new(),
             current_task: None,
+            state: ListState::default(),
         }
     }
 
@@ -141,24 +144,28 @@ impl Widget for &mut TodoWidget {
 
         let mut todo_listitems = Vec::<ListItem>::new();
         if let Some(todolist) = &self.current_todolist {
-            let ct_id = if let Some(ct) = &todolist.borrow().current_task {
-                ct.borrow().id.to_owned().to_string()
-            } else {
-                "".to_string()
-            };
+            // let ct_id = if let Some(ct) = &todolist.borrow().current_task {
+            //     ct.borrow().id.to_owned().to_string()
+            // } else {
+            //     "".to_string()
+            // };
             let tasks = todolist.borrow().tasks.to_owned();
             let task_list = TodoWidget::get_task_list(&tasks, 0);
-            task_list.iter().for_each(|(task, id)| {
-                todo_listitems.push(ListItem::new(task.to_owned()).style(if &ct_id == id {
-                    Style::new().bg(Color::Blue).fg(Color::Black)
-                } else {
-                    Style::default()
-                }));
+            task_list.iter().for_each(|(task, _)| {
+                todo_listitems.push(ListItem::new(task.to_owned()));
             });
-        }
-        let todolist = List::new(todo_listitems).block(block);
+            let listwidget = List::new(todo_listitems)
+                .block(block)
+                .highlight_style(Style::new().bg(Color::Blue).fg(Color::Black));
+            let state = &mut todolist.borrow_mut().state;
 
-        Widget::render(todolist, area, buf);
+            StatefulWidget::render(listwidget, area, buf, state);
+        } else {
+            let listwidget = List::new(todo_listitems)
+                .block(block)
+                .highlight_style(Style::new().bg(Color::Blue).fg(Color::Black));
+            Widget::render(listwidget, area, buf);
+        }
     }
 }
 
@@ -166,11 +173,13 @@ impl SelectAction<Task> for TodoList {
     fn get_selected_bf(
         current_target: &Option<Rc<RefCell<Task>>>,
         targets: &Vec<Rc<RefCell<Task>>>,
+        state: &mut ListState,
         bf: super::SelectBF,
     ) -> Option<Rc<RefCell<Task>>> {
         let task_list = TodoList::get_flattened(targets);
         if task_list.len() > 0 {
             if current_target.is_none() {
+                state.select(Some(0));
                 Some(task_list[0].clone())
             } else {
                 let mut target = 0;
@@ -179,17 +188,19 @@ impl SelectAction<Task> for TodoList {
                     let (i, _) = task_list
                         .iter()
                         .enumerate()
-                        .find(|(i, ws)| ws.borrow().desc == cw.borrow().desc)
+                        .find(|(_, ws)| ws.borrow().desc == cw.borrow().desc)
                         .unwrap();
                     target = i;
                 }
                 match bf {
                     SelectBF::Back => {
+                        state.select_previous();
                         if target != 0 {
                             target -= 1;
                         }
                     }
                     SelectBF::Forward => {
+                        state.select_next();
                         if target < task_list.len() - 1 {
                             target += 1;
                         }

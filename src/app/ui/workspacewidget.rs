@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use ratatui::{
     style::{Color, Style, Stylize},
-    widgets::{Block, List, ListItem, ListState, Widget},
+    widgets::{Block, List, ListItem, ListState, StatefulWidget, Widget},
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -42,6 +42,8 @@ pub struct WorkspaceWidget {
     pub workspaces: Vec<Rc<RefCell<Workspace>>>,
     pub current_workspace: Option<Rc<RefCell<Workspace>>>,
     pub focused: bool,
+    #[serde(skip_serializing, skip_deserializing)]
+    pub ws_state: ListState,
 }
 
 impl WorkspaceWidget {
@@ -50,6 +52,7 @@ impl WorkspaceWidget {
             workspaces: Vec::<Rc<RefCell<Workspace>>>::new(),
             current_workspace: None,
             focused: true,
+            ws_state: ListState::default(),
         }
     }
 
@@ -98,13 +101,16 @@ impl Widget for &mut WorkspaceWidget {
         } else {
             "".to_string()
         };
+        // ws_list.iter().for_each(|desc| {
+        //     if desc.trim() == cws_desc {
+        //         workspace_list
+        //             .push(ListItem::new(desc.to_owned().fg(Color::Black)).bg(Color::Green));
+        //     } else {
+        //         workspace_list.push(ListItem::new(desc.to_owned()));
+        //     }
+        // });
         ws_list.iter().for_each(|desc| {
-            if desc.trim() == cws_desc {
-                workspace_list
-                    .push(ListItem::new(desc.to_owned().fg(Color::Black)).bg(Color::Green));
-            } else {
-                workspace_list.push(ListItem::new(desc.to_owned()));
-            }
+            workspace_list.push(ListItem::new(desc.to_owned()));
         });
 
         let workspace_block =
@@ -116,8 +122,11 @@ impl Widget for &mut WorkspaceWidget {
                     Style::default()
                 });
 
-        let list_widget = List::new(workspace_list).block(workspace_block);
-        Widget::render(list_widget, area, buf);
+        let list_widget = List::new(workspace_list)
+            .block(workspace_block)
+            .highlight_style(Style::new().fg(Color::Black).bg(Color::Green));
+        // Widget::render(list_widget, area, buf);
+        StatefulWidget::render(list_widget, area, buf, &mut self.ws_state);
     }
 }
 
@@ -125,11 +134,13 @@ impl SelectAction<Workspace> for Workspace {
     fn get_selected_bf(
         current_target: &Option<Rc<RefCell<Workspace>>>,
         targets: &Vec<Rc<RefCell<Workspace>>>,
+        state: &mut ListState,
         bf: super::SelectBF,
     ) -> Option<Rc<RefCell<Workspace>>> {
         let ws_list = Workspace::get_flattened(targets);
         if ws_list.len() > 0 {
             if current_target.is_none() {
+                state.select(Some(0));
                 Some(ws_list[0].clone())
             } else {
                 let mut target = 0;
@@ -144,11 +155,13 @@ impl SelectAction<Workspace> for Workspace {
                 }
                 match bf {
                     SelectBF::Back => {
+                        state.select_previous();
                         if target != 0 {
                             target -= 1;
                         }
                     }
                     SelectBF::Forward => {
+                        state.select_next();
                         if target < ws_list.len() - 1 {
                             target += 1;
                         }
@@ -158,6 +171,7 @@ impl SelectAction<Workspace> for Workspace {
                 Some(ws_list[target].clone())
             }
         } else {
+            state.select(None);
             None
         }
     }
