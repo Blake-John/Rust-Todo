@@ -1,37 +1,17 @@
 {
+  "current_workspace": {
+    "children": [],
+    "desc": "D-robot",
+    "expanded": true,
+    "id": "c0965028-5318-4328-a596-4385f84cd1a2"
+  },
+  "focused": false,
   "workspaces": [
     {
-      "desc": "-oo",
+      "children": [],
+      "desc": "D-robot",
       "expanded": true,
-      "children": [
-        {
-          "desc": "sfsff",
-          "expanded": true,
-          "children": []
-        }
-      ]
-    },
-    {
-      "desc": "sfsf",
-      "expanded": true,
-      "children": []
-    },
-    {
-      "desc": "affa",
-      "expanded": true,
-      "children": []
+      "id": "c0965028-5318-4328-a596-4385f84cd1a2"
     }
-  ],
-  "current_workspace": {
-    "desc": "-oo",
-    "expanded": true,
-    "children": [
-      {
-        "desc": "sfsff",
-        "expanded": true,
-        "children": []
-      }
-    ]
-  },
-  "focused": true
+  ]
 }

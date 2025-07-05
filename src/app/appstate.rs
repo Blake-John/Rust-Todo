@@ -19,6 +19,8 @@ impl AppState {
 pub enum Message {
     Update,
     ChangeMode(CurrentMode),
+    ChangeFocus(CurrentFocus),
+    SelectWorkspace,
     AddItem,
     AddChild,
     MoveUp,

@@ -56,8 +56,12 @@ impl App {
 
             rt.block_on(ui.handle_uimsg(&mut terminal, apps_in_ui));
             let path = "data.json";
-            let data = serde_json::to_string_pretty(&ui.workspace).unwrap();
-            let _ = std::fs::write(path, data);
+            let ws = serde_json::to_value(&ui.workspace).unwrap();
+            let todo = serde_json::to_value(&ui.todolist).unwrap();
+            let mut result = ws.as_object().unwrap().clone();
+            result.extend(todo.as_object().unwrap().to_owned());
+            let result = serde_json::to_string_pretty(&ws).unwrap();
+            let _ = std::fs::write(path, result);
         });
 
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -108,6 +112,19 @@ async fn handle_keyevt(
                         }
                         event::KeyCode::Char('k') => {
                             let _ = tx.send(Message::MoveUp).await;
+                        }
+                        event::KeyCode::Tab => {
+                            let _ = tx
+                                .send(Message::ChangeFocus(match apps.current_focus {
+                                    CurrentFocus::Workspace => CurrentFocus::TodoList,
+                                    CurrentFocus::TodoList => CurrentFocus::Workspace,
+                                }))
+                                .await;
+                        }
+                        event::KeyCode::Enter => {
+                            if let CurrentFocus::Workspace = apps.current_focus {
+                                let _ = tx.send(Message::SelectWorkspace).await;
+                            }
                         }
                         _ => {}
                     },
@@ -160,9 +177,7 @@ async fn handle_msg(
                         apps.current_mode = CurrentMode::Insert;
                     }
                     CurrentFocus::TodoList => {
-                        let _ = ui_tx
-                            .send(UiMessage::WAction(WidgetAction::AddTodoList))
-                            .await;
+                        let _ = ui_tx.send(UiMessage::WAction(WidgetAction::AddTask)).await;
                         apps.current_mode = CurrentMode::Insert;
                     }
                 }
@@ -176,12 +191,32 @@ async fn handle_msg(
                             .await;
                         apps.current_mode = CurrentMode::Insert;
                     }
-                    CurrentFocus::TodoList => {}
+                    CurrentFocus::TodoList => {
+                        let _ = ui_tx
+                            .send(UiMessage::WAction(WidgetAction::AddTaskChild))
+                            .await;
+                        apps.current_mode = CurrentMode::Insert;
+                    }
                 }
             }
             Message::ChangeMode(mode) => {
                 let mut apps = appstate.lock().unwrap();
                 apps.current_mode = mode;
+            }
+            Message::ChangeFocus(focus) => {
+                let mut apps = appstate.lock().unwrap();
+                apps.current_focus = focus;
+                let _ = ui_tx
+                    .send(match apps.current_focus {
+                        CurrentFocus::Workspace => UiMessage::WAction(WidgetAction::FocusWorkspace),
+                        CurrentFocus::TodoList => UiMessage::WAction(WidgetAction::FocusTodolist),
+                    })
+                    .await;
+            }
+            Message::SelectWorkspace => {
+                let _ = ui_tx
+                    .send(UiMessage::WAction(WidgetAction::EnterWorkspace))
+                    .await;
             }
             Message::MoveUp => {
                 let _ = ui_tx.send(UiMessage::WAction(WidgetAction::SelectUp)).await;
