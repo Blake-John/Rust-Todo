@@ -6,7 +6,7 @@ use crossterm::event;
 
 use crate::app::{
     appstate::{AppState, CurrentFocus, CurrentMode, Message},
-    ui::{UiMessage, WidgetAction},
+    ui::{InputEvent, UiMessage, WidgetAction},
 };
 
 mod appstate;
@@ -28,13 +28,14 @@ impl App {
         let mut terminal = ratatui::init();
         let (tx, rx) = mpsc::channel::<Message>(10);
         let (ui_tx, ui_rx) = mpsc::channel::<UiMessage>(10);
+        let (input_tx, input_rx) = mpsc::channel::<InputEvent>(10);
 
         let apps_in_keyhand = self.appstate.clone();
         let key_handle = std::thread::spawn(move || {
             let rt = tokio::runtime::Builder::new_current_thread()
                 .build()
                 .unwrap();
-            rt.block_on(handle_keyevt(tx, apps_in_keyhand));
+            rt.block_on(handle_keyevt(tx, input_tx, apps_in_keyhand));
         });
 
         let apps_in_msghand = self.appstate.clone();
@@ -48,15 +49,15 @@ impl App {
 
         let apps_in_ui = self.appstate.clone();
         let _ui_handle = std::thread::spawn(move || {
-            let mut ui = ui::Ui::new(ui_rx);
+            let mut ui = ui::Ui::new(ui_rx, input_rx);
             let rt = tokio::runtime::Builder::new_current_thread()
                 .build()
                 .unwrap();
 
             rt.block_on(ui.handle_uimsg(&mut terminal, apps_in_ui));
-            // let path = "data.json";
-            // let data = serde_json::to_string_pretty(&ui.workspace).unwrap();
-            // std::fs::write(path, data);
+            let path = "data.json";
+            let data = serde_json::to_string_pretty(&ui.workspace).unwrap();
+            let _ = std::fs::write(path, data);
         });
 
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -81,7 +82,11 @@ impl App {
     }
 }
 
-async fn handle_keyevt(tx: mpsc::Sender<Message>, appstate: Arc<Mutex<AppState>>) {
+async fn handle_keyevt(
+    tx: mpsc::Sender<Message>,
+    input_tx: mpsc::Sender<InputEvent>,
+    appstate: Arc<Mutex<AppState>>,
+) {
     loop {
         if let event::Event::Key(key_evt) = event::read().unwrap() {
             if let event::KeyEventKind::Press = key_evt.kind {
@@ -106,14 +111,27 @@ async fn handle_keyevt(tx: mpsc::Sender<Message>, appstate: Arc<Mutex<AppState>>
                         }
                         _ => {}
                     },
-                    CurrentMode::Insert => {
-                        // match key_evt.code {
-                        //     event::KeyCode::Esc => {
-                        //         let _ = tx.send(Message::ChangeMode(CurrentMode::Normal)).await;
-                        //     }
-                        //     _ => {}
-                        // }
-                    }
+                    CurrentMode::Insert => match key_evt.code {
+                        event::KeyCode::Char(c) => {
+                            let _ = input_tx.send(InputEvent::InsertChar(c)).await;
+                        }
+                        event::KeyCode::Backspace => {
+                            let _ = input_tx.send(InputEvent::Backspace).await;
+                        }
+                        event::KeyCode::Esc => {
+                            let _ = input_tx.send(InputEvent::Esc).await;
+                        }
+                        event::KeyCode::Enter => {
+                            let _ = input_tx.send(InputEvent::Enter).await;
+                        }
+                        event::KeyCode::Left => {
+                            let _ = input_tx.send(InputEvent::Left).await;
+                        }
+                        event::KeyCode::Right => {
+                            let _ = input_tx.send(InputEvent::Right).await;
+                        }
+                        _ => {}
+                    },
                 }
             }
         }

@@ -43,18 +43,30 @@ pub enum SelectBF {
 }
 
 #[derive(Debug)]
+pub enum InputEvent {
+    InsertChar(char),
+    Backspace,
+    Left,
+    Right,
+    Enter,
+    Esc,
+}
+
+#[derive(Debug)]
 pub struct Ui {
     pub workspace: WorkspaceWidget,
     pub todolist: (),
     pub ui_rx: mpsc::Receiver<UiMessage>,
+    pub input_rx: Arc<Mutex<mpsc::Receiver<InputEvent>>>,
 }
 
 impl Ui {
-    pub fn new(ui_rx: mpsc::Receiver<UiMessage>) -> Self {
+    pub fn new(ui_rx: mpsc::Receiver<UiMessage>, input_rx: mpsc::Receiver<InputEvent>) -> Self {
         Self {
             workspace: WorkspaceWidget::new(),
             todolist: (),
             ui_rx,
+            input_rx: Arc::new(Mutex::new(input_rx)),
         }
     }
 
@@ -65,10 +77,14 @@ impl Ui {
         f.render_widget(&mut self.workspace, layouts[0]);
     }
 
-    pub async fn add_item(&mut self, terminal: &mut DefaultTerminal) -> String {
+    pub async fn add_item(
+        &mut self,
+        input_rx: Arc<Mutex<mpsc::Receiver<InputEvent>>>,
+        terminal: &mut DefaultTerminal,
+    ) -> String {
         let mut textarea = TextArea::default();
         let mut item = String::new();
-        let mut evtstream = event::EventStream::new();
+        let mut receiver = input_rx.lock().unwrap();
         loop {
             let _ = terminal.draw(|f| {
                 self.update(f);
@@ -77,45 +93,27 @@ impl Ui {
                 textarea.set_block(block);
                 f.render_widget(&textarea, area);
             });
-            let event = evtstream.next().fuse();
-            tokio::select! {
-                maybeevent = event => {
-                    match maybeevent {
-                        Some(Ok(evt)) => {
-
-                        },
-                        None => {},
-                        _ => {break;}
-
+            if let Some(evt) = receiver.recv().await {
+                match evt {
+                    InputEvent::Esc => break,
+                    InputEvent::InsertChar(c) => {
+                        textarea.insert_char(c);
                     }
-                std::thread::sleep(std::time::Duration::from_millis(10));
-
-                }
-            }
-            if let event::Event::Key(keyevt) = event::read().unwrap() {
-                if let event::KeyEventKind::Press = keyevt.kind {
-                    match keyevt.code {
-                        event::KeyCode::Esc => break,
-                        event::KeyCode::Char(c) => {
-                            textarea.insert_char(c);
-                        }
-                        event::KeyCode::Enter => {
-                            let content = textarea.to_owned().into_lines();
-                            content.iter().for_each(|s| {
-                                item += s;
-                            });
-                            break;
-                        }
-                        event::KeyCode::Backspace => {
-                            textarea.delete_char();
-                        }
-                        event::KeyCode::Left => {
-                            textarea.move_cursor(tui_textarea::CursorMove::Back);
-                        }
-                        event::KeyCode::Right => {
-                            textarea.move_cursor(tui_textarea::CursorMove::Forward);
-                        }
-                        _ => {}
+                    InputEvent::Backspace => {
+                        textarea.delete_char();
+                    }
+                    InputEvent::Right => {
+                        textarea.move_cursor(tui_textarea::CursorMove::Back);
+                    }
+                    InputEvent::Left => {
+                        textarea.move_cursor(tui_textarea::CursorMove::Forward);
+                    }
+                    InputEvent::Enter => {
+                        let content = textarea.to_owned().into_lines();
+                        content.iter().for_each(|s| {
+                            item += s;
+                        });
+                        break;
                     }
                 }
             }
@@ -210,10 +208,8 @@ impl Ui {
                     }
                     UiMessage::WAction(waction) => match waction {
                         WidgetAction::AddWorkspace => {
-                            let rt = tokio::runtime::Builder::new_current_thread()
-                                .build()
-                                .unwrap();
-                            let result = rt.block_on(self.add_item(terminal));
+                            let input_rx = self.input_rx.clone();
+                            let result = self.add_item(input_rx, terminal).await;
                             if !result.is_empty() {
                                 self.workspace
                                     .workspaces
@@ -226,13 +222,12 @@ impl Ui {
                             apps.current_mode = CurrentMode::Normal;
                         }
                         WidgetAction::AddTodoList => {
-                            let _result = self.add_item(terminal);
+                            let input_rx = self.input_rx.clone();
+                            let _result = self.add_item(input_rx, terminal);
                         }
                         WidgetAction::AddWorkspaceChild => {
-                            let rt = tokio::runtime::Builder::new_current_thread()
-                                .build()
-                                .unwrap();
-                            let result = rt.block_on(self.add_item(terminal));
+                            let input_rx = self.input_rx.clone();
+                            let result = self.add_item(input_rx, terminal).await;
                             if !result.is_empty() {
                                 if let Some(cw) = &self.workspace.current_workspace {
                                     let mut cw_mut = cw.borrow_mut();
