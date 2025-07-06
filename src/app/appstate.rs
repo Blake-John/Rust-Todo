@@ -23,12 +23,13 @@ pub enum Message {
     SelectWorkspace,
     AddItem,
     AddChild,
+    DeleteItem,
     MoveUp,
     MoveDown,
     Exit,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CurrentFocus {
     Workspace,
     TodoList,

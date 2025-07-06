@@ -58,6 +58,13 @@ impl App {
             let data = data::load_data(path)?;
             ui.workspace = data.workspace;
             ui.todolist = data.todolist;
+            let mut apps = apps_in_ui.lock().unwrap();
+            apps.current_focus = if ui.workspace.focused {
+                CurrentFocus::Workspace
+            } else {
+                CurrentFocus::TodoList
+            };
+            drop(apps);
             let rt = tokio::runtime::Builder::new_current_thread()
                 .build()
                 .unwrap();
@@ -99,7 +106,8 @@ async fn handle_keyevt(
     appstate: Arc<Mutex<AppState>>,
 ) {
     loop {
-        if let event::Event::Key(key_evt) = event::read().unwrap() {
+        let evt = event::read().unwrap();
+        if let event::Event::Key(key_evt) = evt {
             if let event::KeyEventKind::Press = key_evt.kind {
                 let apps = appstate.lock().unwrap();
                 match apps.current_mode {
@@ -119,6 +127,9 @@ async fn handle_keyevt(
                         }
                         event::KeyCode::Char('k') => {
                             let _ = tx.send(Message::MoveUp).await;
+                        }
+                        event::KeyCode::Char('x') => {
+                            let _ = tx.send(Message::DeleteItem).await;
                         }
                         event::KeyCode::Tab => {
                             let _ = tx
@@ -158,6 +169,8 @@ async fn handle_keyevt(
                     },
                 }
             }
+        } else if let event::Event::Resize(_, _) = evt {
+            let _ = tx.send(Message::Update).await;
         }
     }
 }
@@ -178,14 +191,16 @@ async fn handle_msg(
                 let mut apps = appstate.lock().unwrap();
                 match apps.current_focus {
                     CurrentFocus::Workspace => {
+                        apps.current_mode = CurrentMode::Insert;
+                        drop(apps);
                         let _ = ui_tx
                             .send(UiMessage::WAction(WidgetAction::AddWorkspace))
                             .await;
-                        apps.current_mode = CurrentMode::Insert;
                     }
                     CurrentFocus::TodoList => {
-                        let _ = ui_tx.send(UiMessage::WAction(WidgetAction::AddTask)).await;
                         apps.current_mode = CurrentMode::Insert;
+                        drop(apps);
+                        let _ = ui_tx.send(UiMessage::WAction(WidgetAction::AddTask)).await;
                     }
                 }
             }
@@ -193,16 +208,18 @@ async fn handle_msg(
                 let mut apps = appstate.lock().unwrap();
                 match apps.current_focus {
                     CurrentFocus::Workspace => {
+                        apps.current_mode = CurrentMode::Insert;
+                        drop(apps);
                         let _ = ui_tx
                             .send(UiMessage::WAction(WidgetAction::AddWorkspaceChild))
                             .await;
-                        apps.current_mode = CurrentMode::Insert;
                     }
                     CurrentFocus::TodoList => {
+                        apps.current_mode = CurrentMode::Insert;
+                        drop(apps);
                         let _ = ui_tx
                             .send(UiMessage::WAction(WidgetAction::AddTaskChild))
                             .await;
-                        apps.current_mode = CurrentMode::Insert;
                     }
                 }
             }
@@ -212,9 +229,10 @@ async fn handle_msg(
             }
             Message::ChangeFocus(focus) => {
                 let mut apps = appstate.lock().unwrap();
-                apps.current_focus = focus;
+                apps.current_focus = focus.clone();
+                drop(apps);
                 let _ = ui_tx
-                    .send(match apps.current_focus {
+                    .send(match focus {
                         CurrentFocus::Workspace => UiMessage::WAction(WidgetAction::FocusWorkspace),
                         CurrentFocus::TodoList => UiMessage::WAction(WidgetAction::FocusTodolist),
                     })
@@ -233,7 +251,26 @@ async fn handle_msg(
                     .send(UiMessage::WAction(WidgetAction::SelectDown))
                     .await;
             }
-            _ => {}
+            Message::Update => {
+                let _ = ui_tx.send(UiMessage::UpdateUi).await;
+            }
+            Message::DeleteItem => {
+                let mut apps = appstate.lock().unwrap();
+                apps.current_mode = CurrentMode::Insert;
+                match apps.current_focus {
+                    CurrentFocus::Workspace => {
+                        let _ = ui_tx
+                            .send(UiMessage::WAction(WidgetAction::DeleteWorkspace))
+                            .await;
+                    }
+                    CurrentFocus::TodoList => {
+                        let _ = ui_tx
+                            .send(UiMessage::WAction(WidgetAction::DeleteTask))
+                            .await;
+                        
+                    }
+                }
+            }
         }
     }
 }

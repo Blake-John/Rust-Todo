@@ -20,7 +20,7 @@ pub struct Workspace {
 impl Workspace {
     pub fn new(desc: String) -> Self {
         Self {
-            desc: desc,
+            desc,
             id: Uuid::new_v4(),
             expanded: true,
             children: Vec::<Rc<RefCell<Workspace>>>::new(),
@@ -87,6 +87,8 @@ impl WorkspaceWidget {
 
         list_item
     }
+
+    pub fn delete_item(&mut self) {}
 }
 
 impl Widget for &mut WorkspaceWidget {
@@ -96,19 +98,6 @@ impl Widget for &mut WorkspaceWidget {
     {
         let ws_list = WorkspaceWidget::get_ws_list(&self.workspaces, 0);
         let mut workspace_list = Vec::<ListItem>::new();
-        let cws_desc = if let Some(cw) = &self.current_workspace {
-            cw.borrow().desc.to_owned()
-        } else {
-            "".to_string()
-        };
-        // ws_list.iter().for_each(|desc| {
-        //     if desc.trim() == cws_desc {
-        //         workspace_list
-        //             .push(ListItem::new(desc.to_owned().fg(Color::Black)).bg(Color::Green));
-        //     } else {
-        //         workspace_list.push(ListItem::new(desc.to_owned()));
-        //     }
-        // });
         ws_list.iter().for_each(|desc| {
             workspace_list.push(ListItem::new(desc.to_owned()));
         });
@@ -119,13 +108,12 @@ impl Widget for &mut WorkspaceWidget {
                 .border_style(if self.focused {
                     Style::new().fg(Color::LightGreen)
                 } else {
-                    Style::default()
+                    Style::new().fg(Color::DarkGray)
                 });
 
         let list_widget = List::new(workspace_list)
             .block(workspace_block)
             .highlight_style(Style::new().fg(Color::Black).bg(Color::Green));
-        // Widget::render(list_widget, area, buf);
         StatefulWidget::render(list_widget, area, buf, &mut self.ws_state);
     }
 }
@@ -149,7 +137,7 @@ impl SelectAction<Workspace> for Workspace {
                     let (i, _) = ws_list
                         .iter()
                         .enumerate()
-                        .find(|(_, ws)| ws.borrow().desc == cw.borrow().desc)
+                        .find(|(_, ws)| ws.borrow().id == cw.borrow().id)
                         .unwrap();
                     target = i;
                 }

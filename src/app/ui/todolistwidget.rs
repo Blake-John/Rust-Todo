@@ -76,6 +76,8 @@ impl TodoList {
             self.current_task = Some(task);
         }
     }
+
+    pub fn delete_item(&mut self) {}
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -139,16 +141,11 @@ impl Widget for &mut TodoWidget {
             .border_style(if self.focused {
                 Style::new().fg(Color::Blue)
             } else {
-                Style::default()
+                Style::new().fg(Color::DarkGray)
             });
 
         let mut todo_listitems = Vec::<ListItem>::new();
         if let Some(todolist) = &self.current_todolist {
-            // let ct_id = if let Some(ct) = &todolist.borrow().current_task {
-            //     ct.borrow().id.to_owned().to_string()
-            // } else {
-            //     "".to_string()
-            // };
             let tasks = todolist.borrow().tasks.to_owned();
             let task_list = TodoWidget::get_task_list(&tasks, 0);
             task_list.iter().for_each(|(task, _)| {
@@ -184,11 +181,11 @@ impl SelectAction<Task> for TodoList {
             } else {
                 let mut target = 0;
 
-                if let Some(cw) = current_target {
+                if let Some(ct) = current_target {
                     let (i, _) = task_list
                         .iter()
                         .enumerate()
-                        .find(|(_, ws)| ws.borrow().desc == cw.borrow().desc)
+                        .find(|(_, task)| task.borrow().id == ct.borrow().id)
                         .unwrap();
                     target = i;
                 }
