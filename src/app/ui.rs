@@ -22,6 +22,13 @@ pub mod todolistwidget;
 pub mod workspacewidget;
 use workspacewidget::WorkspaceWidget;
 
+/// UiMessage to perform actions
+/// 
+/// # Variants
+/// 
+/// - `Update` - update the data
+/// - `UpdateUi` - update the ui
+/// - `WAction(WidgetAction)` - the action of the widget
 #[derive(Debug)]
 pub enum UiMessage {
     Update,
@@ -29,6 +36,7 @@ pub enum UiMessage {
     WAction(WidgetAction),
 }
 
+/// WidgetAction to change the widget state
 #[derive(Debug)]
 pub enum WidgetAction {
     AddWorkspace,
@@ -44,12 +52,14 @@ pub enum WidgetAction {
     DeleteTask,
 }
 
+/// The select direction, whether to go back or forward
 #[derive(Debug)]
 pub enum SelectBF {
     Back,
     Forward,
 }
 
+/// the input event to define the input action
 #[derive(Debug)]
 pub enum InputEvent {
     InsertChar(char),
@@ -60,6 +70,14 @@ pub enum InputEvent {
     Esc,
 }
 
+/// The Basic Structure of the UI
+/// 
+/// # Fields
+/// 
+/// - `workspace` ([`WorkspaceWidget`]) - a widget to display the workspace
+/// - `todolist` ([`TodoWidget`]) - a widget to display the todo list
+/// - `ui_rx` (`mpsc`) - a mpsc receiver to receive [`UiMessage`]
+/// - `input_rx` (`Arc<Mutex<mpsc::Receiver<InputEvent>>>`) - a mpsc receiver to receive [`InputEvent`]
 #[derive(Debug)]
 pub struct Ui {
     pub workspace: WorkspaceWidget,
@@ -69,12 +87,34 @@ pub struct Ui {
 }
 
 pub trait SelectAction<T> {
+    /// a function to select an item, which is used to change the current target of [`T`]
+    /// inorder to make it consistent with what you selected in the application
+    /// 
+    /// # Arguments
+    /// 
+    /// - `current_target` (`&Option<Rc<RefCell<T>>>`) - what you are currently selecting
+    /// - `targets` (`&Vec<Rc<RefCell<T>>>`) - from which list to change the selection
+    /// - `state` (`&mut ListState`) - a [`ListState`] of [`List`] to show the selection in the ui
+    /// - `bf` (`SelectBF`) - a [`SelectBF`] enum determines whether to select backward or forward
+    /// 
+    /// # Returns
+    /// 
+    /// - `Option<Rc<RefCell<T>>>` - the result of the next selection
     fn get_selected_bf(
         current_target: &Option<Rc<RefCell<T>>>,
         targets: &Vec<Rc<RefCell<T>>>,
         state: &mut ListState,
         bf: SelectBF,
     ) -> Option<Rc<RefCell<T>>>;
+    /// Get the flattened vector of T from the vector of [`T`] which might have nested [`T`] (children)
+    /// 
+    /// # Arguments
+    /// 
+    /// - `target` (`&Vec<Rc<RefCell<T>>>`) - target to be get flattened
+    /// 
+    /// # Returns
+    /// 
+    /// - `Vec<Rc<RefCell<T>>>` - the flattened vector of the target
     fn get_flattened(target: &Vec<Rc<RefCell<T>>>) -> Vec<Rc<RefCell<T>>>;
 }
 
@@ -141,6 +181,12 @@ impl Ui {
         drop(receiver);
 
         item
+    }
+
+    pub fn refresh_current(&mut self) {
+        self.workspace.refresh_current();
+        self.todolist
+            .change_current_list(&self.workspace.current_workspace);
     }
 
     pub async fn delete_item(

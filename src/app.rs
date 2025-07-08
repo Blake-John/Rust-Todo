@@ -17,6 +17,29 @@ pub mod data;
 pub mod errors;
 pub mod ui;
 
+/// The Basic Structure of the App
+/// 
+/// # Fields
+/// 
+/// - `appstate` (`Arc<Mutex<AppState>>`) - A structure that holds the state of the app.
+/// 
+/// # Examples
+/// 
+/// just simply create a new App by
+/// 
+/// ```
+/// use crate::app::App;
+/// let s = App::new();
+/// ```
+/// 
+/// or
+/// 
+/// ```
+/// use crate::app::App;
+/// let s = App {
+///     appstate: Arc::new(Mutex::new(AppState::new())),
+/// };
+/// ```
 #[derive(Debug)]
 pub struct App {
     appstate: Arc<Mutex<AppState>>,
@@ -28,6 +51,28 @@ impl App {
             appstate: Arc::new(Mutex::new(AppState::new())),
         }
     }
+    /// The main function of the app
+    /// 
+    /// # Arguments
+    /// 
+    /// - `&self` ([`App`])
+    /// 
+    /// # Returns
+    /// 
+    /// - `Result<(), errors::Errors>` - the result of the run process.
+    /// 
+    /// # Errors
+    /// 
+    /// see [`errors::Errors`] for more details.
+    /// 
+    /// # Examples
+    /// 
+    /// ```
+    /// use crate::app::App;
+    /// 
+    /// let app = App::new();
+    /// let res = app.run();
+    /// ```
     pub fn run(&self) -> Result<(), errors::Errors> {
         let mut terminal = ratatui::init();
         let (tx, rx) = mpsc::channel::<Message>(10);
@@ -58,6 +103,8 @@ impl App {
             let data = data::load_data(path)?;
             ui.workspace = data.workspace;
             ui.todolist = data.todolist;
+
+            ui.refresh_current();
             let mut apps = apps_in_ui.lock().unwrap();
             apps.current_focus = if ui.workspace.focused {
                 CurrentFocus::Workspace
@@ -100,6 +147,23 @@ impl App {
     }
 }
 
+/// A function handles the keyboard events runing in a thread
+/// 
+/// # Arguments
+/// 
+/// - `tx` (`mpsc`) - a mpsc to send [`Message`] to the message handler
+/// - `input_tx` (`mpsc`) - a mpsc sender to send [`InputEvent`] to the ui module for input handling
+/// - `appstate` (`Arc<Mutex<AppState>>`) - the state of the app
+/// 
+/// # Examples
+/// 
+/// ```no_run
+/// use crate::app::*;
+/// 
+/// async {
+///   let result = handle_keyevt().await;
+/// };
+/// ```
 async fn handle_keyevt(
     tx: mpsc::Sender<Message>,
     input_tx: mpsc::Sender<InputEvent>,
@@ -176,6 +240,23 @@ async fn handle_keyevt(
     }
 }
 
+/// The function handle the message from keyevent handler
+/// 
+/// # Arguments
+/// 
+/// - `mut rx` (`mpsc`) - mpsc receiver to receive message from keyevent handler
+/// - `ui_tx` (`mpsc`) - mpsc sender to send message to ui
+/// - `appstate` (`Arc<Mutex<AppState>>`) - the state of the app
+/// 
+/// # Examples
+/// 
+/// ```no_run
+/// use crate::app::handle_msg;
+/// 
+/// async {
+///   let result = handle_msg().await;
+/// };
+/// ```
 async fn handle_msg(
     mut rx: mpsc::Receiver<Message>,
     ui_tx: mpsc::Sender<UiMessage>,

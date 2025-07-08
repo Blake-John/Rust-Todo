@@ -1,6 +1,6 @@
-mod app;
+pub mod app;
 
-fn main() {
+pub fn main() {
     let app = app::App::new();
     let appresult = app.run();
     if let Err(err) = appresult {
