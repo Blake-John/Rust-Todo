@@ -7,7 +7,7 @@ use crate::app::{
     ui::{todolistwidget::TodoWidget, workspacewidget::WorkspaceWidget},
 };
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Datas {
     pub workspace: WorkspaceWidget,
     pub todolist: TodoWidget,
@@ -22,12 +22,10 @@ pub fn save_data(path: &Path, datas: &Datas) -> Result<(), errors::Errors> {
 pub fn load_data(path: &Path) -> Result<Datas, errors::Errors> {
     if path.exists() {
         let content = fs::read_to_string(path).map_err(|_| errors::Errors::LoadError)?;
-        let data = serde_json::from_str(&content).map_err(|_| errors::Errors::LoadError);
-        data
+        // let data = serde_json::from_str(&content).map_err(|_| errors::Errors::LoadError);
+        let data = serde_json::from_str(&content).unwrap();
+        Ok(data)
     } else {
-        Ok(Datas {
-            workspace: WorkspaceWidget::new(),
-            todolist: TodoWidget::new(),
-        })
+        Ok(Datas::default())
     }
 }

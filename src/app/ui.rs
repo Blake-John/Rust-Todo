@@ -3,10 +3,10 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::vec;
 
-use ratatui::layout::Rect;
+use ratatui::layout::{Alignment, Rect};
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Text};
-use ratatui::widgets::{Block, ListState, Paragraph};
+use ratatui::widgets::{Block, Clear, ListState, Paragraph};
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Layout},
@@ -110,6 +110,7 @@ impl Ui {
                 let area = Ui::get_popup_window(50, 20, f);
                 let block = Block::bordered().title(" Add Item ");
                 textarea.set_block(block);
+                f.render_widget(Clear, area);
                 f.render_widget(&textarea, area);
             });
             if let Some(evt) = receiver.recv().await {
@@ -122,10 +123,10 @@ impl Ui {
                         textarea.delete_char();
                     }
                     InputEvent::Right => {
-                        textarea.move_cursor(tui_textarea::CursorMove::Back);
+                        textarea.move_cursor(tui_textarea::CursorMove::Forward);
                     }
                     InputEvent::Left => {
-                        textarea.move_cursor(tui_textarea::CursorMove::Forward);
+                        textarea.move_cursor(tui_textarea::CursorMove::Back);
                     }
                     InputEvent::Enter => {
                         let content = textarea.to_owned().into_lines();
@@ -148,7 +149,7 @@ impl Ui {
         terminal: &mut DefaultTerminal,
     ) -> bool {
         let _ = terminal.draw(|f| {
-            let area = Ui::get_popup_window(30, 20, f);
+            let area = Ui::get_popup_window(30, 10, f);
             let block = Block::bordered().title(" Warn ").yellow();
             let info_line = Line::from(vec![
                 "Do you want to ".into(),
@@ -157,7 +158,9 @@ impl Ui {
             ]);
             let confirm_line = Line::from(vec!["y/".red(), "n".yellow()]);
             let tip = Text::from(vec![info_line, confirm_line]).centered();
-            let para = Paragraph::new(tip).centered().block(block);
+            let para = Paragraph::new(tip).centered().block(block).bold();
+            self.update(f);
+            f.render_widget(Clear, area);
             f.render_widget(para, area);
         });
         let mut receiver = input_rx.lock().unwrap();
@@ -355,7 +358,19 @@ impl Ui {
                         let input_rx = self.input_rx.clone();
                         let result = self.delete_item(input_rx, terminal).await;
                         if result {
-                            self.workspace.delete_item();
+                            WorkspaceWidget::delete_item(
+                                &mut self.workspace.workspaces,
+                                &self.workspace.current_workspace,
+                            );
+                            let tar_ws = self
+                                .workspace
+                                .current_workspace
+                                .clone()
+                                .unwrap()
+                                .borrow_mut()
+                                .id;
+                            self.workspace.current_workspace = None;
+                            self.todolist.delete_list(tar_ws);
                         }
                         let _ = terminal.draw(|f| self.update(f));
                         let mut apps = appstate.lock().unwrap();
@@ -364,15 +379,23 @@ impl Ui {
                     WidgetAction::DeleteTask => {
                         let input_rx = self.input_rx.clone();
                         let result = self.delete_item(input_rx, terminal).await;
-                        if let Some(ctl) = &self.todolist.current_todolist {
-                            let mut ctl_mut = ctl.borrow_mut();
-                            if result {
-                                ctl_mut.delete_item();
+                        if result {
+                            // let ctl = &self.todolist.current_todolist;
+                            if let Some(cur_list) = &self.todolist.current_todolist {
+                                let cur_list_ = cur_list.clone();
+                                let ctask = cur_list_.borrow().current_task.clone();
+                                if let Some(cur_task) = ctask {
+                                    TodoWidget::delete_task(
+                                        &mut self.todolist.todolists,
+                                        cur_list,
+                                        &cur_task,
+                                    );
+                                    self.todolist
+                                        .change_current_list(&self.workspace.current_workspace);
+                                }
                             }
                         }
-                        let _ = terminal.draw(|f| {
-                            self.update(f);
-                        });
+                        let _ = terminal.draw(|f| self.update(f));
                         let mut apps = appstate.lock().unwrap();
                         apps.current_mode = CurrentMode::Normal;
                     }

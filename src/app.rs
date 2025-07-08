@@ -131,14 +131,15 @@ async fn handle_keyevt(
                         event::KeyCode::Char('x') => {
                             let _ = tx.send(Message::DeleteItem).await;
                         }
-                        event::KeyCode::Tab => {
-                            let _ = tx
-                                .send(Message::ChangeFocus(match apps.current_focus {
-                                    CurrentFocus::Workspace => CurrentFocus::TodoList,
-                                    CurrentFocus::TodoList => CurrentFocus::Workspace,
-                                }))
-                                .await;
-                        }
+                        event::KeyCode::Tab => match apps.current_focus {
+                            CurrentFocus::TodoList => {
+                                let _ =
+                                    tx.send(Message::ChangeFocus(CurrentFocus::Workspace)).await;
+                            }
+                            CurrentFocus::Workspace => {
+                                let _ = tx.send(Message::SelectWorkspace).await;
+                            }
+                        },
                         event::KeyCode::Enter => {
                             if let CurrentFocus::Workspace = apps.current_focus {
                                 let _ = tx.send(Message::SelectWorkspace).await;
@@ -267,7 +268,6 @@ async fn handle_msg(
                         let _ = ui_tx
                             .send(UiMessage::WAction(WidgetAction::DeleteTask))
                             .await;
-                        
                     }
                 }
             }

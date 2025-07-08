@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use ratatui::{
     style::{Color, Style, Stylize},
-    widgets::{Block, List, ListItem, ListState, StatefulWidget, Widget},
+    widgets::{Block, List, ListItem, ListState, Padding, StatefulWidget, Widget},
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -42,7 +42,7 @@ pub struct WorkspaceWidget {
     pub workspaces: Vec<Rc<RefCell<Workspace>>>,
     pub current_workspace: Option<Rc<RefCell<Workspace>>>,
     pub focused: bool,
-    #[serde(skip_serializing, skip_deserializing)]
+    #[serde(default)]
     pub ws_state: ListState,
 }
 
@@ -88,7 +88,30 @@ impl WorkspaceWidget {
         list_item
     }
 
-    pub fn delete_item(&mut self) {}
+    pub fn delete_item(
+        workspaces: &mut Vec<Rc<RefCell<Workspace>>>,
+        cur_ws: &Option<Rc<RefCell<Workspace>>>,
+    ) {
+        let mut result = None;
+        if let Some(cws) = cur_ws {
+            for (i, ws) in workspaces.iter().enumerate() {
+                if cws.borrow().id == ws.borrow().id {
+                    result = Some(i);
+                    break;
+                } else if !cws.borrow_mut().children.is_empty() {
+                    WorkspaceWidget::delete_item(&mut cws.borrow_mut().children, cur_ws);
+                }
+            }
+
+            workspaces.remove(result.unwrap());
+        }
+    }
+}
+
+impl Default for WorkspaceWidget {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl Widget for &mut WorkspaceWidget {
@@ -102,14 +125,14 @@ impl Widget for &mut WorkspaceWidget {
             workspace_list.push(ListItem::new(desc.to_owned()));
         });
 
-        let workspace_block =
-            Block::bordered()
-                .title(" Workspace ".green())
-                .border_style(if self.focused {
-                    Style::new().fg(Color::LightGreen)
-                } else {
-                    Style::new().fg(Color::DarkGray)
-                });
+        let workspace_block = Block::bordered()
+            .title(" Workspace ".green())
+            .border_style(if self.focused {
+                Style::new().fg(Color::LightGreen)
+            } else {
+                Style::new().fg(Color::DarkGray)
+            })
+            .padding(Padding::uniform(1));
 
         let list_widget = List::new(workspace_list)
             .block(workspace_block)
@@ -126,7 +149,7 @@ impl SelectAction<Workspace> for Workspace {
         bf: super::SelectBF,
     ) -> Option<Rc<RefCell<Workspace>>> {
         let ws_list = Workspace::get_flattened(targets);
-        if ws_list.len() > 0 {
+        if !ws_list.is_empty() {
             if current_target.is_none() {
                 state.select(Some(0));
                 Some(ws_list[0].clone())
@@ -144,9 +167,7 @@ impl SelectAction<Workspace> for Workspace {
                 match bf {
                     SelectBF::Back => {
                         state.select_previous();
-                        if target != 0 {
-                            target -= 1;
-                        }
+                        target = target.saturating_sub(1);
                     }
                     SelectBF::Forward => {
                         state.select_next();

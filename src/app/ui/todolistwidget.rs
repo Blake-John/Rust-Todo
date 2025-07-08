@@ -1,9 +1,10 @@
 use std::{cell::RefCell, rc::Rc};
 
 use chrono::{DateTime, Local};
+use futures::task;
 use ratatui::{
     style::{Color, Style, Stylize},
-    widgets::{Block, List, ListItem, ListState, StatefulWidget, Widget},
+    widgets::{Block, List, ListItem, ListState, Padding, StatefulWidget, Widget},
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -49,7 +50,7 @@ pub struct TodoList {
     pub workspace: Uuid,
     pub tasks: Vec<Rc<RefCell<Task>>>,
     pub current_task: Option<Rc<RefCell<Task>>>,
-    #[serde(skip_serializing, skip_deserializing)]
+    #[serde(default)]
     pub state: ListState,
 }
 
@@ -65,7 +66,6 @@ impl TodoList {
 
     pub fn add_task(&mut self, task: Rc<RefCell<Task>>) {
         self.tasks.push(task.clone());
-        self.current_task = Some(task);
     }
 
     pub fn add_child_task(&mut self, task: Rc<RefCell<Task>>) {
@@ -73,11 +73,34 @@ impl TodoList {
             ctask.borrow_mut().add_child(task);
         } else {
             self.add_task(task.clone());
-            self.current_task = Some(task);
+            // self.current_task = Some(task);
         }
     }
 
-    pub fn delete_item(&mut self) {}
+    pub fn set_current_task_none(&mut self) {
+        self.state.select(None);
+        self.current_task = None;
+    }
+
+    pub fn delete_item(cur_task: &Rc<RefCell<Task>>, tasks: &mut Vec<Rc<RefCell<Task>>>) {
+        let mut res = None;
+        for (i, task) in tasks.iter().enumerate() {
+            let mut task_mut = task.borrow_mut();
+            // println!("{:?}\n{:?}", task_mut.id, cur_task.clone().borrow().id);
+            if task_mut.id == cur_task.borrow().id {
+                res = Some(i);
+                // println!("{:?}", res);
+                break;
+            }
+            if !task_mut.children.is_empty() {
+                TodoList::delete_item(cur_task, &mut task_mut.children);
+            }
+        }
+        // println!("{:?}", res);
+        if let Some(i) = res {
+            tasks.remove(i);
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -126,8 +149,47 @@ impl TodoWidget {
         }
     }
 
+    pub fn set_cur_task_none(&mut self) {
+        if let Some(cur_list) = &self.current_todolist {
+            let mut cur_list_mut = cur_list.borrow_mut();
+            cur_list_mut.set_current_task_none();
+        }
+    }
+
     pub fn add_list(&mut self, list: Rc<RefCell<TodoList>>) {
         self.todolists.push(list);
+    }
+
+    pub fn delete_list(&mut self, tar_ws: Uuid) {
+        let res = self
+            .todolists
+            .iter()
+            .enumerate()
+            .find(|(_, list)| list.borrow().workspace == tar_ws);
+        if let Some((i, _)) = res {
+            self.todolists.remove(i);
+        }
+        self.current_todolist = None;
+    }
+    pub fn delete_task(
+        lists: &mut Vec<Rc<RefCell<TodoList>>>,
+        cur_list: &Rc<RefCell<TodoList>>,
+        cur_task: &Rc<RefCell<Task>>,
+    ) {
+        let list_id = cur_list.borrow().workspace;
+        for list in lists.iter() {
+            let tar_list_id = list.clone().borrow().workspace;
+            if tar_list_id == list_id {
+                let mut list_mut = list.borrow_mut();
+                TodoList::delete_item(cur_task, &mut list_mut.tasks);
+            }
+        }
+    }
+}
+
+impl Default for TodoWidget {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -142,7 +204,8 @@ impl Widget for &mut TodoWidget {
                 Style::new().fg(Color::Blue)
             } else {
                 Style::new().fg(Color::DarkGray)
-            });
+            })
+            .padding(Padding::uniform(1));
 
         let mut todo_listitems = Vec::<ListItem>::new();
         if let Some(todolist) = &self.current_todolist {
@@ -174,7 +237,7 @@ impl SelectAction<Task> for TodoList {
         bf: super::SelectBF,
     ) -> Option<Rc<RefCell<Task>>> {
         let task_list = TodoList::get_flattened(targets);
-        if task_list.len() > 0 {
+        if !task_list.is_empty() {
             if current_target.is_none() {
                 state.select(Some(0));
                 Some(task_list[0].clone())
@@ -192,9 +255,7 @@ impl SelectAction<Task> for TodoList {
                 match bf {
                     SelectBF::Back => {
                         state.select_previous();
-                        if target != 0 {
-                            target -= 1;
-                        }
+                        target = target.saturating_sub(1);
                     }
                     SelectBF::Forward => {
                         state.select_next();
