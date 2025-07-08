@@ -1,7 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
 use chrono::{DateTime, Local};
-use futures::task;
 use ratatui::{
     style::{Color, Style, Stylize},
     widgets::{Block, List, ListItem, ListState, Padding, StatefulWidget, Widget},
@@ -85,21 +84,53 @@ impl TodoList {
     pub fn delete_item(cur_task: &Rc<RefCell<Task>>, tasks: &mut Vec<Rc<RefCell<Task>>>) {
         let mut res = None;
         for (i, task) in tasks.iter().enumerate() {
-            let mut task_mut = task.borrow_mut();
-            // println!("{:?}\n{:?}", task_mut.id, cur_task.clone().borrow().id);
-            if task_mut.id == cur_task.borrow().id {
+            if Rc::ptr_eq(cur_task, task) {
                 res = Some(i);
-                // println!("{:?}", res);
                 break;
-            }
-            if !task_mut.children.is_empty() {
-                TodoList::delete_item(cur_task, &mut task_mut.children);
+            } else {
+                let mut task_mut = task.borrow_mut();
+                if !task_mut.children.is_empty() {
+                    print!("find in sub");
+                    TodoList::delete_item(cur_task, &mut task_mut.children);
+                }
             }
         }
-        // println!("{:?}", res);
+        print!("{:?}", res);
         if let Some(i) = res {
             tasks.remove(i);
         }
+        // let mut res = None;
+        // for (i, task) in tasks.iter().enumerate() {
+        //     let mut task_mut = task.borrow_mut();
+        //     if task_mut.id == cur_task.borrow().id {
+        //         res = Some(i);
+        //         break;
+        //     }
+        //     if !task_mut.children.is_empty() {
+        //         TodoList::delete_item(cur_task, &mut task_mut.children);
+        //     }
+        // }
+        // // println!("{:?}", res);
+        // if let Some(i) = res {
+        //     tasks.remove(i);
+        // }
+    }
+
+    pub fn delete_task(&mut self) {
+        if let Some(cur_task) = &self.current_task {
+            TodoList::delete_item(cur_task, &mut self.tasks);
+        }
+        self.current_task = None;
+        self.state.select(None);
+        // let list_id = cur_list.borrow().workspace;
+        // for list in lists.iter() {
+        //     let tar_list_id = list.clone().borrow().workspace;
+        //     if tar_list_id == list_id {
+        //         let mut list_mut = list.borrow_mut();
+        //         // let cur_task_ = cur_task.clone();
+        //         TodoList::delete_item(cur_task, &mut list_mut.tasks);
+        //     }
+        // }
     }
 }
 
@@ -170,20 +201,6 @@ impl TodoWidget {
             self.todolists.remove(i);
         }
         self.current_todolist = None;
-    }
-    pub fn delete_task(
-        lists: &mut Vec<Rc<RefCell<TodoList>>>,
-        cur_list: &Rc<RefCell<TodoList>>,
-        cur_task: &Rc<RefCell<Task>>,
-    ) {
-        let list_id = cur_list.borrow().workspace;
-        for list in lists.iter() {
-            let tar_list_id = list.clone().borrow().workspace;
-            if tar_list_id == list_id {
-                let mut list_mut = list.borrow_mut();
-                TodoList::delete_item(cur_task, &mut list_mut.tasks);
-            }
-        }
     }
 }
 

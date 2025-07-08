@@ -23,9 +23,9 @@ pub mod workspacewidget;
 use workspacewidget::WorkspaceWidget;
 
 /// UiMessage to perform actions
-/// 
+///
 /// # Variants
-/// 
+///
 /// - `Update` - update the data
 /// - `UpdateUi` - update the ui
 /// - `WAction(WidgetAction)` - the action of the widget
@@ -71,9 +71,9 @@ pub enum InputEvent {
 }
 
 /// The Basic Structure of the UI
-/// 
+///
 /// # Fields
-/// 
+///
 /// - `workspace` ([`WorkspaceWidget`]) - a widget to display the workspace
 /// - `todolist` ([`TodoWidget`]) - a widget to display the todo list
 /// - `ui_rx` (`mpsc`) - a mpsc receiver to receive [`UiMessage`]
@@ -89,16 +89,16 @@ pub struct Ui {
 pub trait SelectAction<T> {
     /// a function to select an item, which is used to change the current target of [`T`]
     /// inorder to make it consistent with what you selected in the application
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// - `current_target` (`&Option<Rc<RefCell<T>>>`) - what you are currently selecting
     /// - `targets` (`&Vec<Rc<RefCell<T>>>`) - from which list to change the selection
     /// - `state` (`&mut ListState`) - a [`ListState`] of [`List`] to show the selection in the ui
     /// - `bf` (`SelectBF`) - a [`SelectBF`] enum determines whether to select backward or forward
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// - `Option<Rc<RefCell<T>>>` - the result of the next selection
     fn get_selected_bf(
         current_target: &Option<Rc<RefCell<T>>>,
@@ -107,13 +107,13 @@ pub trait SelectAction<T> {
         bf: SelectBF,
     ) -> Option<Rc<RefCell<T>>>;
     /// Get the flattened vector of T from the vector of [`T`] which might have nested [`T`] (children)
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// - `target` (`&Vec<Rc<RefCell<T>>>`) - target to be get flattened
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// - `Vec<Rc<RefCell<T>>>` - the flattened vector of the target
     fn get_flattened(target: &Vec<Rc<RefCell<T>>>) -> Vec<Rc<RefCell<T>>>;
 }
@@ -404,19 +404,22 @@ impl Ui {
                         let input_rx = self.input_rx.clone();
                         let result = self.delete_item(input_rx, terminal).await;
                         if result {
-                            WorkspaceWidget::delete_item(
-                                &mut self.workspace.workspaces,
-                                &self.workspace.current_workspace,
-                            );
-                            let tar_ws = self
-                                .workspace
-                                .current_workspace
-                                .clone()
-                                .unwrap()
-                                .borrow_mut()
-                                .id;
-                            self.workspace.current_workspace = None;
-                            self.todolist.delete_list(tar_ws);
+                            if let Some(cur_ws) = &self.workspace.current_workspace {
+                                WorkspaceWidget::delete_item(
+                                    &mut self.workspace.workspaces,
+                                    cur_ws,
+                                );
+                                // TODO: add the confirm dialog if the workspace has tasks
+                                let tar_ws = self
+                                    .workspace
+                                    .current_workspace
+                                    .clone()
+                                    .unwrap()
+                                    .borrow_mut()
+                                    .id;
+                                self.workspace.current_workspace = None;
+                                self.todolist.delete_list(tar_ws);
+                            }
                         }
                         let _ = terminal.draw(|f| self.update(f));
                         let mut apps = appstate.lock().unwrap();
@@ -426,20 +429,28 @@ impl Ui {
                         let input_rx = self.input_rx.clone();
                         let result = self.delete_item(input_rx, terminal).await;
                         if result {
-                            // let ctl = &self.todolist.current_todolist;
                             if let Some(cur_list) = &self.todolist.current_todolist {
-                                let cur_list_ = cur_list.clone();
-                                let ctask = cur_list_.borrow().current_task.clone();
-                                if let Some(cur_task) = ctask {
-                                    TodoWidget::delete_task(
-                                        &mut self.todolist.todolists,
-                                        cur_list,
-                                        &cur_task,
-                                    );
-                                    self.todolist
-                                        .change_current_list(&self.workspace.current_workspace);
-                                }
+                                let mut cur_list_mut = cur_list.borrow_mut();
+                                // TODO: add confirm dialog if the task has children
+                                // FIXME: Sometimes not work while deleting sub task
+                                cur_list_mut.delete_task();
                             }
+
+                            // // let ctl = &self.todolist.current_todolist;
+                            // if let Some(cur_list) = &self.todolist.current_todolist {
+                            //     let cur_list_ = cur_list.clone();
+                            //     let ctask = cur_list_.borrow().current_task.clone();
+                            //     if let Some(cur_task) = &ctask {
+                            //         // let cur_task_ = cur_task.clone();
+                            //         TodoWidget::delete_task(
+                            //             &mut self.todolist.todolists,
+                            //             cur_list,
+                            //             cur_task,
+                            //         );
+                            //         self.todolist
+                            //             .change_current_list(&self.workspace.current_workspace);
+                            //     }
+                            // }
                         }
                         let _ = terminal.draw(|f| self.update(f));
                         let mut apps = appstate.lock().unwrap();
