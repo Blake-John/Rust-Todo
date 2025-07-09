@@ -108,7 +108,7 @@ impl WorkspaceWidget {
         } else {
             self.add_workspace(workspace.clone());
         }
-        self.current_workspace = Some(workspace.clone());
+        // self.current_workspace = Some(workspace.clone());
     }
 
     /// Refresh the [`WorkspaceWidget::current_workspace`] to make it consistent with the

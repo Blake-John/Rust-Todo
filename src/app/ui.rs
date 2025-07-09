@@ -350,6 +350,8 @@ impl Ui {
                                     &mut self.workspace.ws_state,
                                     SelectBF::Back,
                                 );
+                                self.todolist
+                                    .change_current_list(&self.workspace.current_workspace);
                                 let _ = terminal.draw(|f| self.update(f));
                             }
                             CurrentFocus::TodoList => {
@@ -380,6 +382,8 @@ impl Ui {
                                     &mut self.workspace.ws_state,
                                     SelectBF::Forward,
                                 );
+                                self.todolist
+                                    .change_current_list(&self.workspace.current_workspace);
                                 let _ = terminal.draw(|f| self.update(f));
                             }
                             CurrentFocus::TodoList => {
@@ -418,6 +422,7 @@ impl Ui {
                                     .borrow_mut()
                                     .id;
                                 self.workspace.current_workspace = None;
+                                self.workspace.ws_state.select(None);
                                 self.todolist.delete_list(tar_ws);
                             }
                         }

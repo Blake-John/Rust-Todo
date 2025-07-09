@@ -81,6 +81,20 @@ impl TodoList {
         self.current_task = None;
     }
 
+    pub fn refresh_current_task(&mut self) {
+        let mut res = None;
+        if let Some(cur_task) = &self.current_task {
+            let tasks = TodoList::get_flattened(&self.tasks);
+            for task in tasks.iter() {
+                if cur_task.borrow().id == task.borrow().id {
+                    res = Some(task.clone());
+                    break;
+                }
+            }
+            self.current_task = res;
+        }
+    }
+
     pub fn delete_item(cur_task: &Rc<RefCell<Task>>, tasks: &mut Vec<Rc<RefCell<Task>>>) {
         let mut res = None;
         for (i, task) in tasks.iter().enumerate() {
@@ -176,6 +190,7 @@ impl TodoWidget {
                 .find(|&l| l.borrow().workspace.to_string() == ws_id)
                 .unwrap()
                 .to_owned();
+            target.borrow_mut().refresh_current_task();
             self.current_todolist = Some(target);
         }
     }
