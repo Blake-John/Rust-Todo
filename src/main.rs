@@ -1,9 +1,6 @@
-mod app;
-use serde::{Deserialize, Serialize};
-use serde_json;
-use std::fs;
+pub mod app;
 
-fn main() {
+pub fn main() {
     let app = app::App::new();
     let appresult = app.run();
     if let Err(err) = appresult {
