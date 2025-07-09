@@ -18,22 +18,22 @@ pub mod errors;
 pub mod ui;
 
 /// The Basic Structure of the App
-/// 
+///
 /// # Fields
-/// 
+///
 /// - `appstate` (`Arc<Mutex<AppState>>`) - A structure that holds the state of the app.
-/// 
+///
 /// # Examples
-/// 
+///
 /// just simply create a new App by
-/// 
+///
 /// ```
 /// use crate::app::App;
 /// let s = App::new();
 /// ```
-/// 
+///
 /// or
-/// 
+///
 /// ```
 /// use crate::app::App;
 /// let s = App {
@@ -52,24 +52,24 @@ impl App {
         }
     }
     /// The main function of the app
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// - `&self` ([`App`])
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// - `Result<(), errors::Errors>` - the result of the run process.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// see [`errors::Errors`] for more details.
-    /// 
+    ///
     /// # Examples
-    /// 
+    ///
     /// ```
     /// use crate::app::App;
-    /// 
+    ///
     /// let app = App::new();
     /// let res = app.run();
     /// ```
@@ -121,19 +121,19 @@ impl App {
                 workspace: ui.workspace,
                 todolist: ui.todolist,
             };
-            let result = data::save_data(path, &datas);
-            result
+
+            data::save_data(path, &datas)
         });
 
         let rt = tokio::runtime::Builder::new_current_thread()
             .build()
             .unwrap();
-        let _ = rt.block_on(async move {
+        rt.block_on(async move {
             let _ = ui_tx.send(UiMessage::Update).await;
             let _ = ui_tx.send(UiMessage::UpdateUi).await;
         });
 
-        let _result = key_handle
+        key_handle
             .join()
             .map_err(|_| errors::Errors::AppError)
             .unwrap();
@@ -147,19 +147,25 @@ impl App {
     }
 }
 
+impl Default for App {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// A function handles the keyboard events runing in a thread
-/// 
+///
 /// # Arguments
-/// 
+///
 /// - `tx` (`mpsc`) - a mpsc to send [`Message`] to the message handler
 /// - `input_tx` (`mpsc`) - a mpsc sender to send [`InputEvent`] to the ui module for input handling
 /// - `appstate` (`Arc<Mutex<AppState>>`) - the state of the app
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```no_run
 /// use crate::app::*;
-/// 
+///
 /// async {
 ///   let result = handle_keyevt().await;
 /// };
@@ -191,6 +197,17 @@ async fn handle_keyevt(
                         }
                         event::KeyCode::Char('k') => {
                             let _ = tx.send(Message::MoveUp).await;
+                        }
+                        event::KeyCode::Char('l') => {
+                            if let CurrentFocus::Workspace = apps.current_focus {
+                                let _ = tx.send(Message::SelectWorkspace).await;
+                            }
+                        }
+                        event::KeyCode::Char('h') => {
+                            if let CurrentFocus::TodoList = apps.current_focus {
+                                let _ =
+                                    tx.send(Message::ChangeFocus(CurrentFocus::Workspace)).await;
+                            }
                         }
                         event::KeyCode::Char('x') => {
                             let _ = tx.send(Message::DeleteItem).await;
@@ -241,18 +258,18 @@ async fn handle_keyevt(
 }
 
 /// The function handle the message from keyevent handler
-/// 
+///
 /// # Arguments
-/// 
+///
 /// - `mut rx` (`mpsc`) - mpsc receiver to receive message from keyevent handler
 /// - `ui_tx` (`mpsc`) - mpsc sender to send message to ui
 /// - `appstate` (`Arc<Mutex<AppState>>`) - the state of the app
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```no_run
 /// use crate::app::handle_msg;
-/// 
+///
 /// async {
 ///   let result = handle_msg().await;
 /// };
@@ -274,14 +291,12 @@ async fn handle_msg(
                 match apps.current_focus {
                     CurrentFocus::Workspace => {
                         apps.current_mode = CurrentMode::Insert;
-                        drop(apps);
                         let _ = ui_tx
                             .send(UiMessage::WAction(WidgetAction::AddWorkspace))
                             .await;
                     }
                     CurrentFocus::TodoList => {
                         apps.current_mode = CurrentMode::Insert;
-                        drop(apps);
                         let _ = ui_tx.send(UiMessage::WAction(WidgetAction::AddTask)).await;
                     }
                 }
@@ -291,14 +306,12 @@ async fn handle_msg(
                 match apps.current_focus {
                     CurrentFocus::Workspace => {
                         apps.current_mode = CurrentMode::Insert;
-                        drop(apps);
                         let _ = ui_tx
                             .send(UiMessage::WAction(WidgetAction::AddWorkspaceChild))
                             .await;
                     }
                     CurrentFocus::TodoList => {
                         apps.current_mode = CurrentMode::Insert;
-                        drop(apps);
                         let _ = ui_tx
                             .send(UiMessage::WAction(WidgetAction::AddTaskChild))
                             .await;
@@ -312,7 +325,6 @@ async fn handle_msg(
             Message::ChangeFocus(focus) => {
                 let mut apps = appstate.lock().unwrap();
                 apps.current_focus = focus.clone();
-                drop(apps);
                 let _ = ui_tx
                     .send(match focus {
                         CurrentFocus::Workspace => UiMessage::WAction(WidgetAction::FocusWorkspace),

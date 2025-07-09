@@ -65,7 +65,7 @@ impl Workspace {
 /// - `current_workspace` (`Option<Rc<RefCell<Workspace>>>`) - the current selected workspace or None.
 /// - `focused` (`bool`) - whether the widget is focused or not.
 /// - `#[serde(default)] ws_state` (`ListState`) - The [`ListState`] of the [`List`] widget, which is used to select the workspace
-/// because the workspaces are displayed in a [`List`] widget.
+///   because the workspaces are displayed in a [`List`] widget.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WorkspaceWidget {
     pub workspaces: Vec<Rc<RefCell<Workspace>>>,
@@ -136,21 +136,26 @@ impl WorkspaceWidget {
     ///
     /// - `workspaces` (`&Vec<Rc<RefCell<Workspace>>>`) - the workspaces to get the desc list from
     /// - `dep` (`usize`) - a helper parameter to determine the depth of the workspaces, because each worksapce might
-    /// have children and this function will be called recursively
+    ///   have children and this function will be called recursively
     ///
     /// # Returns
     ///
     /// - `Vec<String>` - the desc list of the workspaces, which is indented
-    pub fn get_ws_list(workspaces: &Vec<Rc<RefCell<Workspace>>>, dep: usize) -> Vec<String> {
+    pub fn get_ws_list(workspaces: &[Rc<RefCell<Workspace>>], dep: usize) -> Vec<String> {
         let mut list_item = Vec::<String>::new();
         workspaces.iter().for_each(|item| {
             let ws = item.borrow();
             let desc = ws.desc.clone();
-            let it = "  ".repeat(dep) + desc.as_str();
+            let prefix = if !ws.children.is_empty() {
+                if ws.expanded { "∨ " } else { "﹥ " }
+            } else {
+                ""
+            };
+            let it = "  ".repeat(dep) + prefix + desc.as_str();
             list_item.push(it);
 
             if ws.expanded {
-                let children_list = WorkspaceWidget::get_ws_list(&ws.children, dep + 1);
+                let children_list = WorkspaceWidget::get_ws_list(&ws.children, dep + 2);
                 list_item.extend(children_list);
             }
         });
@@ -205,7 +210,7 @@ impl Widget for &mut WorkspaceWidget {
         });
 
         let workspace_block = Block::bordered()
-            .title(" Workspace ".green())
+            .title(" Workspace ".light_green())
             .border_style(if self.focused {
                 Style::new().fg(Color::LightGreen)
             } else {
@@ -215,7 +220,13 @@ impl Widget for &mut WorkspaceWidget {
 
         let list_widget = List::new(workspace_list)
             .block(workspace_block)
-            .highlight_style(Style::new().fg(Color::Black).bg(Color::Green));
+            .highlight_style(if self.focused {
+                Style::new()
+                    // .fg(Color::LightGreen)
+                    .bg(Color::Rgb(80, 100, 109))
+            } else {
+                Style::new().fg(Color::LightGreen)
+            });
         StatefulWidget::render(list_widget, area, buf, &mut self.ws_state);
     }
 }

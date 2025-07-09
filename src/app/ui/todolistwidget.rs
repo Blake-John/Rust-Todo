@@ -3,6 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use chrono::{DateTime, Local};
 use ratatui::{
     style::{Color, Style, Stylize},
+    text::Line,
     widgets::{Block, List, ListItem, ListState, Padding, StatefulWidget, Widget},
 };
 use serde::{Deserialize, Serialize};
@@ -104,12 +105,10 @@ impl TodoList {
             } else {
                 let mut task_mut = task.borrow_mut();
                 if !task_mut.children.is_empty() {
-                    print!("find in sub");
                     TodoList::delete_item(cur_task, &mut task_mut.children);
                 }
             }
         }
-        print!("{:?}", res);
         if let Some(i) = res {
             tasks.remove(i);
         }
@@ -163,17 +162,28 @@ impl TodoWidget {
             focused: false,
         }
     }
-    pub fn get_task_list(task_list: &Vec<Rc<RefCell<Task>>>, dep: usize) -> Vec<(String, String)> {
-        let mut task_item = Vec::<(String, String)>::new();
+    pub fn get_task_list_item<'a>(
+        task_list: &[Rc<RefCell<Task>>],
+        dep: usize,
+    ) -> Vec<ListItem<'a>> {
+        let mut task_item = Vec::<ListItem>::new();
         task_list.iter().for_each(|item| {
             let task = item.borrow();
             let desc = task.desc.to_owned();
-            let id = task.id.to_string();
-            let it = "  ".repeat(dep) + desc.as_str();
-            task_item.push((it, id));
+            let prefix = match &task.status {
+                TaskStatus::Todo => "▢".white(),
+                TaskStatus::InProcess => "▣".blue(),
+                TaskStatus::Finished => "✓".green(),
+            };
+            let it = ListItem::new(Line::from(vec![
+                prefix,
+                "  ".repeat(dep).into(),
+                desc.into(),
+            ]));
+            task_item.push(it);
 
             if task.expanded {
-                let child = TodoWidget::get_task_list(&task.children, dep + 1);
+                let child = TodoWidget::get_task_list_item(&task.children, dep + 1);
                 task_item.extend(child);
             }
         });
@@ -239,23 +249,32 @@ impl Widget for &mut TodoWidget {
             })
             .padding(Padding::uniform(1));
 
-        let mut todo_listitems = Vec::<ListItem>::new();
+        let todo_listitems = Vec::<ListItem>::new();
         if let Some(todolist) = &self.current_todolist {
             let tasks = todolist.borrow().tasks.to_owned();
-            let task_list = TodoWidget::get_task_list(&tasks, 0);
-            task_list.iter().for_each(|(task, _)| {
-                todo_listitems.push(ListItem::new(task.to_owned()));
-            });
-            let listwidget = List::new(todo_listitems)
+            let task_list = TodoWidget::get_task_list_item(&tasks, 1);
+            // task_list.iter().for_each(|task| {
+            //     todo_listitems.push(ListItem::new(task));
+            // });
+            let listwidget = List::new(task_list)
                 .block(block)
-                .highlight_style(Style::new().bg(Color::Blue).fg(Color::Black));
+                .highlight_style(if self.focused {
+                    Style::new().bg(Color::Rgb(66, 80, 102))
+                } else {
+                    Style::new()
+                });
             let state = &mut todolist.borrow_mut().state;
 
             StatefulWidget::render(listwidget, area, buf, state);
         } else {
-            let listwidget = List::new(todo_listitems)
-                .block(block)
-                .highlight_style(Style::new().bg(Color::Blue).fg(Color::Black));
+            let listwidget =
+                List::new(todo_listitems)
+                    .block(block)
+                    .highlight_style(if self.focused {
+                        Style::new().bg(Color::Rgb(80, 100, 109))
+                    } else {
+                        Style::new()
+                    });
             Widget::render(listwidget, area, buf);
         }
     }
