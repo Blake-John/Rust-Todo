@@ -9,7 +9,7 @@ use crossterm::event;
 use crate::app::{
     appstate::{AppState, CurrentFocus, CurrentMode, Message},
     data::Datas,
-    ui::{InputEvent, UiMessage, WidgetAction},
+    ui::{InputEvent, UiMessage, WidgetAction, todolistwidget::TaskStatus},
 };
 
 pub mod appstate;
@@ -203,6 +203,26 @@ async fn handle_keyevt(
                                 let _ = tx.send(Message::SelectWorkspace).await;
                             }
                         }
+                        event::KeyCode::Char('c') => {
+                            if let CurrentFocus::TodoList = apps.current_focus {
+                                let _ = tx.send(Message::Complete).await;
+                            }
+                        }
+                        event::KeyCode::Char('t') => {
+                            if let CurrentFocus::TodoList = apps.current_focus {
+                                let _ = tx.send(Message::Todo).await;
+                            }
+                        }
+                        event::KeyCode::Char('p') => {
+                            if let CurrentFocus::TodoList = apps.current_focus {
+                                let _ = tx.send(Message::InProcess).await;
+                            }
+                        }
+                        event::KeyCode::Char('A') => {
+                            if let CurrentFocus::Workspace = apps.current_focus {
+                                let _ = tx.send(Message::Archive).await;
+                            }
+                        }
                         event::KeyCode::Char('h') => {
                             if let CurrentFocus::TodoList = apps.current_focus {
                                 let _ =
@@ -363,6 +383,32 @@ async fn handle_msg(
                             .await;
                     }
                 }
+            }
+            Message::Archive => {
+                let _ = ui_tx
+                    .send(UiMessage::WAction(WidgetAction::ArchiveWS))
+                    .await;
+            }
+            Message::Complete => {
+                let _ = ui_tx
+                    .send(UiMessage::WAction(WidgetAction::MarkTaskStatus(
+                        TaskStatus::Finished,
+                    )))
+                    .await;
+            }
+            Message::InProcess => {
+                let _ = ui_tx
+                    .send(UiMessage::WAction(WidgetAction::MarkTaskStatus(
+                        TaskStatus::InProcess,
+                    )))
+                    .await;
+            }
+            Message::Todo => {
+                let _ = ui_tx
+                    .send(UiMessage::WAction(WidgetAction::MarkTaskStatus(
+                        TaskStatus::Todo,
+                    )))
+                    .await;
             }
         }
     }

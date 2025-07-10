@@ -2,7 +2,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use chrono::{DateTime, Local};
 use ratatui::{
-    style::{Color, Style, Stylize},
+    style::{Color, Modifier, Style, Styled, Stylize},
     text::Line,
     widgets::{Block, List, ListItem, ListState, Padding, StatefulWidget, Widget},
 };
@@ -177,8 +177,21 @@ impl TodoWidget {
             };
             let it = ListItem::new(Line::from(vec![
                 prefix,
-                "  ".repeat(dep).into(),
-                desc.into(),
+                "  ".repeat(dep)
+                    .set_style(if let TaskStatus::Finished = &task.status {
+                        Style::new()
+                            .add_modifier(Modifier::CROSSED_OUT)
+                            .fg(Color::LightGreen)
+                    } else {
+                        Style::default()
+                    }),
+                desc.set_style(if let TaskStatus::Finished = &task.status {
+                    Style::new()
+                        .add_modifier(Modifier::CROSSED_OUT)
+                        .fg(Color::LightGreen)
+                } else {
+                    Style::default()
+                }),
             ]));
             task_item.push(it);
 

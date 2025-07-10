@@ -15,7 +15,7 @@ use tokio::sync::mpsc;
 use tui_textarea::TextArea;
 
 use crate::app::appstate::{AppState, CurrentFocus, CurrentMode};
-use crate::app::ui::todolistwidget::{Task, TodoList, TodoWidget};
+use crate::app::ui::todolistwidget::{Task, TaskStatus, TodoList, TodoWidget};
 use crate::app::ui::workspacewidget::Workspace;
 
 pub mod todolistwidget;
@@ -50,6 +50,8 @@ pub enum WidgetAction {
     EnterWorkspace,
     DeleteWorkspace,
     DeleteTask,
+    MarkTaskStatus(TaskStatus),
+    ArchiveWS,
 }
 
 /// The select direction, whether to go back or forward
@@ -437,7 +439,6 @@ impl Ui {
                             if let Some(cur_list) = &self.todolist.current_todolist {
                                 let mut cur_list_mut = cur_list.borrow_mut();
                                 // TODO: add confirm dialog if the task has children
-                                // FIXME: Sometimes not work while deleting sub task
                                 cur_list_mut.delete_task();
                             }
 
@@ -461,6 +462,16 @@ impl Ui {
                         let mut apps = appstate.lock().unwrap();
                         apps.current_mode = CurrentMode::Normal;
                     }
+                    WidgetAction::MarkTaskStatus(status) => {
+                        if let Some(cur_list) = &self.todolist.current_todolist {
+                            if let Some(cur_task) = &cur_list.borrow().current_task {
+                                let mut cur_task_mut = cur_task.borrow_mut();
+                                cur_task_mut.status = status;
+                            }
+                        }
+                        let _ = terminal.draw(|f| self.update(f));
+                    }
+                    _ => {}
                 },
             }
         }

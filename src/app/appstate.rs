@@ -1,16 +1,16 @@
 /// Structure for app state
-/// 
+///
 /// # Fields
-/// 
+///
 /// - `current_focus` ([`CurrentFocus`]) - state which is focused
 /// - `current_mode` ([`CurrentMode`]) - state which mode is active
 /// - `exit` (`bool`) - whether the app should exit
-/// 
+///
 /// # Examples
-/// 
+///
 /// ```
 /// use crate::app::appstate::AppState;
-/// 
+///
 /// let appstate = AppState::new();
 /// ```
 #[derive(Debug)]
@@ -31,9 +31,9 @@ impl AppState {
 }
 
 /// Message of the application
-/// 
+///
 /// # Variants
-/// 
+///
 /// - `Update` - Update the application ui
 /// - `ChangeMode(CurrentMode)` - change the mode of the application
 /// - `ChangeFocus(CurrentFocus)` - change the focus of the application
@@ -56,6 +56,10 @@ pub enum Message {
     MoveUp,
     MoveDown,
     Exit,
+    Archive,
+    Complete,
+    InProcess,
+    Todo,
 }
 
 /// State of which is focused
