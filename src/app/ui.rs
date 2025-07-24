@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::vec;
 
+use keymap::KeyMap;
 use ratatui::layout::Rect;
 use ratatui::style::Stylize;
 use ratatui::text::{Line, Text};
@@ -18,6 +19,7 @@ use crate::app::appstate::{AppState, CurrentFocus, CurrentMode};
 use crate::app::ui::todolistwidget::{Task, TaskStatus, TodoList, TodoWidget};
 use crate::app::ui::workspacewidget::Workspace;
 
+pub mod keymap;
 pub mod todolistwidget;
 pub mod workspacewidget;
 use workspacewidget::WorkspaceWidget;
@@ -84,6 +86,7 @@ pub enum InputEvent {
 pub struct Ui {
     pub workspace: WorkspaceWidget,
     pub todolist: TodoWidget,
+    pub keymap: KeyMap,
     pub ui_rx: mpsc::Receiver<UiMessage>,
     pub input_rx: Arc<Mutex<mpsc::Receiver<InputEvent>>>,
 }
@@ -125,17 +128,20 @@ impl Ui {
         Self {
             workspace: WorkspaceWidget::new(),
             todolist: TodoWidget::new(),
+            keymap: KeyMap::default(),
             ui_rx,
             input_rx: Arc::new(Mutex::new(input_rx)),
         }
     }
 
     pub fn update(&mut self, f: &mut Frame) {
+        let layout = Layout::vertical([Constraint::Fill(1), Constraint::Max(1)]).split(f.area());
         let layouts = Layout::horizontal([Constraint::Percentage(20), Constraint::Percentage(80)])
-            .split(f.area());
+            .split(layout[0]);
 
         f.render_widget(&mut self.workspace, layouts[0]);
         f.render_widget(&mut self.todolist, layouts[1]);
+        f.render_widget(&mut self.keymap, layout[1]);
     }
 
     pub async fn add_item(
