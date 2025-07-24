@@ -195,6 +195,11 @@ impl Ui {
         self.workspace.refresh_current();
         self.todolist
             .change_current_list(&self.workspace.current_workspace);
+        self.keymap.focus = if self.workspace.focused {
+            CurrentFocus::Workspace
+        } else {
+            CurrentFocus::TodoList
+        };
     }
 
     pub async fn delete_item(
@@ -269,11 +274,13 @@ impl Ui {
                     WidgetAction::FocusWorkspace => {
                         self.workspace.focused = true;
                         self.todolist.focused = false;
+                        self.keymap.focus = CurrentFocus::Workspace;
                         let _result = terminal.draw(|f| self.update(f));
                     }
                     WidgetAction::FocusTodolist => {
                         self.workspace.focused = false;
                         self.todolist.focused = true;
+                        self.keymap.focus = CurrentFocus::TodoList;
                         let _result = terminal.draw(|f| self.update(f));
                     }
                     WidgetAction::AddWorkspace => {
@@ -344,6 +351,7 @@ impl Ui {
                         apps.current_focus = CurrentFocus::TodoList;
                         self.workspace.focused = false;
                         self.todolist.focused = true;
+                        self.keymap.focus = CurrentFocus::TodoList;
                         self.todolist
                             .change_current_list(&self.workspace.current_workspace);
                         let _result = terminal.draw(|f| self.update(f));
