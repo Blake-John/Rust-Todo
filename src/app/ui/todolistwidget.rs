@@ -11,11 +11,12 @@ use uuid::Uuid;
 
 use crate::app::ui::{SelectAction, SelectBF, workspacewidget::Workspace};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TaskStatus {
     Todo,
     InProcess,
     Finished,
+    Deprecated,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -42,6 +43,15 @@ impl Task {
 
     pub fn add_child(&mut self, task: Rc<RefCell<Task>>) {
         self.children.push(task);
+    }
+    pub fn set_task_status(task: &Rc<RefCell<Task>>, status: TaskStatus) {
+        let mut task_mut = task.borrow_mut();
+        task_mut.status = status.clone();
+        if !task_mut.children.is_empty() {
+            task_mut.children.iter().for_each(|t| {
+                Task::set_task_status(t, status.clone());
+            });
+        }
     }
 }
 
@@ -174,23 +184,28 @@ impl TodoWidget {
                 TaskStatus::Todo => "▢".white(),
                 TaskStatus::InProcess => "▣".blue(),
                 TaskStatus::Finished => "✓".green(),
+                TaskStatus::Deprecated => "X".red(),
             };
             let it = ListItem::new(Line::from(vec![
                 prefix,
-                "  ".repeat(dep)
-                    .set_style(if let TaskStatus::Finished = &task.status {
-                        Style::new()
-                            .add_modifier(Modifier::CROSSED_OUT)
-                            .fg(Color::LightGreen)
-                    } else {
-                        Style::default()
-                    }),
-                desc.set_style(if let TaskStatus::Finished = &task.status {
-                    Style::new()
+                "  ".repeat(dep).into(),
+                //     .set_style(match &task.status {
+                //     TaskStatus::Finished => Style::new()
+                //         .add_modifier(Modifier::CROSSED_OUT)
+                //         .fg(Color::LightGreen),
+                //     TaskStatus::Deprecated => Style::new()
+                //         .add_modifier(Modifier::CROSSED_OUT)
+                //         .fg(Color::Red),
+                //     _ => Style::default(),
+                // }),
+                desc.set_style(match &task.status {
+                    TaskStatus::Finished => Style::new()
+                        // .add_modifier(Modifier::CROSSED_OUT)
+                        .fg(Color::LightGreen),
+                    TaskStatus::Deprecated => Style::new()
                         .add_modifier(Modifier::CROSSED_OUT)
-                        .fg(Color::LightGreen)
-                } else {
-                    Style::default()
+                        .fg(Color::Red),
+                    _ => Style::default(),
                 }),
             ]));
             task_item.push(it);

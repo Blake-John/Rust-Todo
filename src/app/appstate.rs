@@ -60,6 +60,7 @@ pub enum Message {
     Complete,
     InProcess,
     Todo,
+    Deprecated,
 }
 
 /// State of which is focused

@@ -479,8 +479,7 @@ impl Ui {
                     WidgetAction::MarkTaskStatus(status) => {
                         if let Some(cur_list) = &self.todolist.current_todolist {
                             if let Some(cur_task) = &cur_list.borrow().current_task {
-                                let mut cur_task_mut = cur_task.borrow_mut();
-                                cur_task_mut.status = status;
+                                Task::set_task_status(cur_task, status);
                             }
                         }
                         let _ = terminal.draw(|f| self.update(f));

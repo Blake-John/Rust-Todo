@@ -99,7 +99,7 @@ impl App {
         let apps_in_ui = self.appstate.clone();
         let ui_handle = std::thread::spawn(move || -> Result<(), errors::Errors> {
             let mut ui = ui::Ui::new(ui_rx, input_rx);
-            let path = Path::new("data.json");
+            let path = Path::new("/home/blake/.todo/data.json");
             let data = data::load_data(path)?;
             ui.workspace = data.workspace;
             ui.todolist = data.todolist;
@@ -227,6 +227,11 @@ async fn handle_keyevt(
                             if let CurrentFocus::TodoList = apps.current_focus {
                                 let _ =
                                     tx.send(Message::ChangeFocus(CurrentFocus::Workspace)).await;
+                            }
+                        }
+                        event::KeyCode::Char('d') => {
+                            if let CurrentFocus::TodoList = apps.current_focus {
+                                let _ = tx.send(Message::Deprecated).await;
                             }
                         }
                         event::KeyCode::Char('x') => {
@@ -407,6 +412,13 @@ async fn handle_msg(
                 let _ = ui_tx
                     .send(UiMessage::WAction(WidgetAction::MarkTaskStatus(
                         TaskStatus::Todo,
+                    )))
+                    .await;
+            }
+            Message::Deprecated => {
+                let _ = ui_tx
+                    .send(UiMessage::WAction(WidgetAction::MarkTaskStatus(
+                        TaskStatus::Deprecated,
                     )))
                     .await;
             }

@@ -34,8 +34,8 @@ impl Default for KeyMap {
                 "<x>delete ",
                 "<i>subtask ",
                 "<c>complete ",
-                "<p>inprocess",
-                "<t>todo",
+                "<p>inprocess ",
+                "<t>todo ",
                 //TODO: Implement rename functionality
                 "<r>rename ",
                 //TODO: Implement sort functionality
