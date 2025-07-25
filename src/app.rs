@@ -1,6 +1,5 @@
 use std::{
-    path::Path,
-    sync::{Arc, Mutex},
+    path::Path, sync::{Arc, Mutex}
 };
 use tokio::sync::mpsc;
 
@@ -99,8 +98,8 @@ impl App {
         let apps_in_ui = self.appstate.clone();
         let ui_handle = std::thread::spawn(move || -> Result<(), errors::Errors> {
             let mut ui = ui::Ui::new(ui_rx, input_rx);
-            let path = Path::new("/home/blake/.todo/data.json");
-            let data = data::load_data(path)?;
+            let path = Path::new(std::env::home_dir().unwrap_or(std::path::PathBuf::from("/home/blake/")).as_path()).join(".todo/data.json");
+            let data = data::load_data(path.as_path())?;
             ui.workspace = data.workspace;
             ui.todolist = data.todolist;
 
@@ -122,7 +121,7 @@ impl App {
                 todolist: ui.todolist,
             };
 
-            data::save_data(path, &datas)
+            data::save_data(path.as_path(), &datas)
         });
 
         let rt = tokio::runtime::Builder::new_current_thread()
