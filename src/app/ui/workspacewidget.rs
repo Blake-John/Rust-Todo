@@ -7,7 +7,10 @@ use ratatui::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::app::ui::{SelectAction, SelectBF};
+use crate::app::ui::{
+    SelectAction, SelectBF,
+    todolistwidget::{TodoList, TodoWidget},
+};
 
 /// The Workspace Structure to store the basic information of a workspace
 ///
@@ -54,6 +57,16 @@ impl Workspace {
         workspaces.iter().for_each(|workspace| {
             self.add_child(workspace.clone());
         });
+    }
+
+    // TODO: find whether the ws has a todo list
+    pub fn has_todolist(&self, todo_lists: &TodoWidget) -> bool {
+        for t in todo_lists.todolists.iter() {
+            if !t.borrow().tasks.is_empty() {
+                return true;
+            }
+        }
+        return false;
     }
 }
 

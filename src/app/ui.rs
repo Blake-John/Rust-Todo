@@ -241,6 +241,53 @@ impl Ui {
         }
     }
 
+    pub async fn confirm_delete(
+        &mut self,
+        input_rx: Arc<Mutex<mpsc::Receiver<InputEvent>>>,
+        terminal: &mut DefaultTerminal,
+        target: CurrentFocus,
+    ) -> bool {
+        let _ = terminal.draw(|f| {
+            let area = Ui::get_popup_window(30, 10, f);
+            let block = Block::bordered().title(" Warn ").yellow();
+            let info_line = match target {
+                CurrentFocus::Workspace => Line::from(vec![
+                    "The Current Workspace is ".into(),
+                    "not empty ! ".red(),
+                    "still delete ?".yellow(),
+                ]),
+                CurrentFocus::TodoList => Line::from(vec![
+                    "The Todo List is ".into(),
+                    "not empty ! ".red(),
+                    "still delete ?".yellow(),
+                ]),
+            };
+            let confirm_line = Line::from(vec!["y/".red(), "n".yellow()]);
+            let tip = Text::from(vec![info_line, confirm_line]).centered();
+            let para = Paragraph::new(tip).centered().block(block).bold();
+            self.update(f);
+            f.render_widget(Clear, area);
+            f.render_widget(para, area);
+        });
+        let mut receiver = input_rx.lock().unwrap();
+        loop {
+            if let Some(evt) = receiver.recv().await {
+                match evt {
+                    InputEvent::InsertChar('y') => {
+                        return true;
+                    }
+                    InputEvent::InsertChar('n') => {
+                        return false;
+                    }
+                    InputEvent::Esc => {
+                        return false;
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
     pub fn get_popup_window(percent_x: u16, percent_y: u16, f: &mut Frame) -> Rect {
         let layout1 = Layout::horizontal([
             Constraint::Percentage((100 - percent_x) / 2),
@@ -424,22 +471,34 @@ impl Ui {
                         let input_rx = self.input_rx.clone();
                         let result = self.delete_item(input_rx, terminal).await;
                         if result {
-                            if let Some(cur_ws) = &self.workspace.current_workspace {
-                                WorkspaceWidget::delete_item(
-                                    &mut self.workspace.workspaces,
-                                    cur_ws,
-                                );
-                                // TODO: add the confirm dialog if the workspace has tasks
-                                let tar_ws = self
-                                    .workspace
-                                    .current_workspace
-                                    .clone()
-                                    .unwrap()
-                                    .borrow_mut()
-                                    .id;
-                                self.workspace.current_workspace = None;
-                                self.workspace.ws_state.select(None);
-                                self.todolist.delete_list(tar_ws);
+                            let cur_ws_opt = self.workspace.current_workspace.clone();
+                            let mut second_confirm = false;
+                            if let Some(cur_ws) = &cur_ws_opt {
+                                let cur_ws_bo = cur_ws.borrow();
+                                // NOTE: add the confirm dialog if the workspace has sub ws
+                                if !cur_ws_bo.children.is_empty() {
+                                    let input_rx = self.input_rx.clone();
+                                    second_confirm = self
+                                        .confirm_delete(input_rx, terminal, CurrentFocus::Workspace)
+                                        .await;
+                                }
+                                if cur_ws_bo.has_todolist(&self.todolist) {
+                                    let input_rx = self.input_rx.clone();
+                                    second_confirm = self
+                                        .confirm_delete(input_rx, terminal, CurrentFocus::TodoList)
+                                        .await
+                                }
+                                if second_confirm {
+                                    WorkspaceWidget::delete_item(
+                                        &mut self.workspace.workspaces,
+                                        cur_ws,
+                                    );
+                                    // TODO: add the confirm dialog if the workspace has tasks
+                                    let tar_ws = cur_ws_bo.id;
+                                    self.workspace.current_workspace = None;
+                                    self.workspace.ws_state.select(None);
+                                    self.todolist.delete_list(tar_ws);
+                                }
                             }
                         }
                         let _ = terminal.draw(|f| self.update(f));
