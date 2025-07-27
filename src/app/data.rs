@@ -8,9 +8,9 @@ use crate::app::{
 };
 
 /// Struct to store the data of the application only when loading and saving datas
-/// 
+///
 /// # Fields
-/// 
+///
 /// - `workspace` ([`WorkspaceWidget`])
 /// - `todolist` ([`TodoWidget`])
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -20,18 +20,18 @@ pub struct Datas {
 }
 
 /// save the application data to spesific file
-/// 
+//
 /// # Arguments
-/// 
+///
 /// - `path` (`&Path`) - path of data file
 /// - `datas` (`&Datas`) - datas to saves
-/// 
+///
 /// # Returns
-/// 
+///
 /// - `Result<(), errors::Errors>` - () or error while saving data
-/// 
+///
 /// # Errors
-/// 
+///
 /// more detials see [`errors::Errors`]
 pub fn save_data(path: &Path, datas: &Datas) -> Result<(), errors::Errors> {
     let res = serde_json::to_string_pretty(datas).unwrap();
@@ -40,17 +40,17 @@ pub fn save_data(path: &Path, datas: &Datas) -> Result<(), errors::Errors> {
 }
 
 /// load the data from the specific file
-/// 
+///
 /// # Arguments
-/// 
+///
 /// - `path` (`&Path`) - path of the data file
-/// 
+///
 /// # Returns
-/// 
+///
 /// - `Result<Datas, errors::Errors>` - () or error while loading data
-/// 
+///
 /// # Errors
-/// 
+///
 /// more details see [`errors::Errors`]
 pub fn load_data(path: &Path) -> Result<Datas, errors::Errors> {
     if path.exists() {
@@ -59,6 +59,13 @@ pub fn load_data(path: &Path) -> Result<Datas, errors::Errors> {
         let data = serde_json::from_str(&content).unwrap();
         Ok(data)
     } else {
+        fs::create_dir_all(
+            path.parent().unwrap_or(
+                std::env::home_dir()
+                    .unwrap_or(std::path::PathBuf::from("/home/blake"))
+                    .as_path(),
+            ),
+        );
         Ok(Datas::default())
     }
 }
