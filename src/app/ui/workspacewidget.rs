@@ -62,7 +62,7 @@ impl Workspace {
     // TODO: find whether the ws has a todo list
     pub fn has_todolist(&self, todo_lists: &TodoWidget) -> bool {
         for t in todo_lists.todolists.iter() {
-            if !t.borrow().tasks.is_empty() {
+            if self.id == t.borrow().workspace && !t.borrow().tasks.is_empty() {
                 return true;
             }
         }

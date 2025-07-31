@@ -472,7 +472,7 @@ impl Ui {
                         let result = self.delete_item(input_rx, terminal).await;
                         if result {
                             let cur_ws_opt = self.workspace.current_workspace.clone();
-                            let mut second_confirm = false;
+                            let mut second_confirm = true;
                             if let Some(cur_ws) = &cur_ws_opt {
                                 let cur_ws_bo = cur_ws.borrow();
                                 // NOTE: add the confirm dialog if the workspace has sub ws
@@ -482,6 +482,7 @@ impl Ui {
                                         .confirm_delete(input_rx, terminal, CurrentFocus::Workspace)
                                         .await;
                                 }
+                                // FIXME: even the ws has no todo list it will popup the dialog
                                 if cur_ws_bo.has_todolist(&self.todolist) {
                                     let input_rx = self.input_rx.clone();
                                     second_confirm = self

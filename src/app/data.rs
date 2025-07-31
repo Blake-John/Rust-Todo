@@ -59,7 +59,7 @@ pub fn load_data(path: &Path) -> Result<Datas, errors::Errors> {
         let data = serde_json::from_str(&content).unwrap();
         Ok(data)
     } else {
-        fs::create_dir_all(
+        let _ = fs::create_dir_all(
             path.parent().unwrap_or(
                 std::env::home_dir()
                     .unwrap_or(std::path::PathBuf::from("/home/blake"))
