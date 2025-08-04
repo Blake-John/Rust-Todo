@@ -28,7 +28,13 @@ impl Default for KeyMap {
     fn default() -> Self {
         KeyMap {
             focus: CurrentFocus::Workspace,
-            workspace_hint: vec!["<a>add ", "<x>delete ", "<i>subworkspace ", "<h>help "],
+            workspace_hint: vec![
+                "<a>add ",
+                "<x>delete ",
+                "<i>subworkspace ",
+                "<r>rename ",
+                "<h>help ",
+            ],
             tasklist_hint: vec![
                 "<a>add ",
                 "<x>delete ",

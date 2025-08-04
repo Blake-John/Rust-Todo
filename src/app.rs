@@ -236,6 +236,9 @@ async fn handle_keyevt(
                         event::KeyCode::Char('x') => {
                             let _ = tx.send(Message::DeleteItem).await;
                         }
+                        event::KeyCode::Char('r') => {
+                            let _ = tx.send(Message::Rename).await;
+                        }
                         event::KeyCode::Tab => match apps.current_focus {
                             CurrentFocus::TodoList => {
                                 let _ =
@@ -420,6 +423,18 @@ async fn handle_msg(
                         TaskStatus::Deprecated,
                     )))
                     .await;
+            }
+            Message::Rename => {
+                let mut app_state = appstate.lock().unwrap();
+                app_state.current_mode = CurrentMode::Insert;
+                match app_state.current_focus {
+                    CurrentFocus::Workspace => {
+                        let _ = ui_tx.send(UiMessage::WAction(WidgetAction::Rename(CurrentFocus::Workspace))).await;
+                    }
+                    CurrentFocus::TodoList => {
+                        let _ = ui_tx.send(UiMessage::WAction(WidgetAction::Rename(CurrentFocus::TodoList))).await;
+                    }
+                }
             }
         }
     }

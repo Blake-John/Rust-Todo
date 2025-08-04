@@ -9,7 +9,7 @@ use ratatui::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::app::ui::{SelectAction, SelectBF, workspacewidget::Workspace};
+use crate::app::ui::{workspacewidget::Workspace, SelectAction, SelectBF};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TaskStatus {
@@ -52,6 +52,10 @@ impl Task {
                 Task::set_task_status(t, status.clone());
             });
         }
+    }
+
+    pub fn rename(&mut self, new_name: String) {
+        self.desc = new_name;
     }
 }
 
@@ -122,21 +126,6 @@ impl TodoList {
         if let Some(i) = res {
             tasks.remove(i);
         }
-        // let mut res = None;
-        // for (i, task) in tasks.iter().enumerate() {
-        //     let mut task_mut = task.borrow_mut();
-        //     if task_mut.id == cur_task.borrow().id {
-        //         res = Some(i);
-        //         break;
-        //     }
-        //     if !task_mut.children.is_empty() {
-        //         TodoList::delete_item(cur_task, &mut task_mut.children);
-        //     }
-        // }
-        // // println!("{:?}", res);
-        // if let Some(i) = res {
-        //     tasks.remove(i);
-        // }
     }
 
     pub fn delete_task(&mut self) {
@@ -145,15 +134,6 @@ impl TodoList {
         }
         self.current_task = None;
         self.state.select(None);
-        // let list_id = cur_list.borrow().workspace;
-        // for list in lists.iter() {
-        //     let tar_list_id = list.clone().borrow().workspace;
-        //     if tar_list_id == list_id {
-        //         let mut list_mut = list.borrow_mut();
-        //         // let cur_task_ = cur_task.clone();
-        //         TodoList::delete_item(cur_task, &mut list_mut.tasks);
-        //     }
-        // }
     }
 }
 
@@ -291,6 +271,7 @@ impl Widget for &mut TodoWidget {
                 } else {
                     Style::new()
                 });
+            // let state = &mut todolist.borrow_mut().state;
             let state = &mut todolist.borrow_mut().state;
 
             StatefulWidget::render(listwidget, area, buf, state);

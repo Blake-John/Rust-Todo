@@ -61,6 +61,7 @@ pub enum Message {
     InProcess,
     Todo,
     Deprecated,
+    Rename,
 }
 
 /// State of which is focused

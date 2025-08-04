@@ -7,10 +7,7 @@ use ratatui::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::app::ui::{
-    SelectAction, SelectBF,
-    todolistwidget::{TodoList, TodoWidget},
-};
+use crate::app::ui::{todolistwidget::TodoWidget, SelectAction, SelectBF};
 
 /// The Workspace Structure to store the basic information of a workspace
 ///
@@ -59,14 +56,18 @@ impl Workspace {
         });
     }
 
-    // TODO: find whether the ws has a todo list
     pub fn has_todolist(&self, todo_lists: &TodoWidget) -> bool {
         for t in todo_lists.todolists.iter() {
             if self.id == t.borrow().workspace && !t.borrow().tasks.is_empty() {
                 return true;
             }
         }
-        return false;
+        false
+    }
+
+    // TODO: complete the rename function
+    pub fn rename(&mut self, new_name: String) {
+        self.desc = new_name;
     }
 }
 
@@ -160,7 +161,11 @@ impl WorkspaceWidget {
             let ws = item.borrow();
             let desc = ws.desc.clone();
             let prefix = if !ws.children.is_empty() {
-                if ws.expanded { "∨ " } else { "﹥ " }
+                if ws.expanded {
+                    "∨ "
+                } else {
+                    "﹥ "
+                }
             } else {
                 ""
             };

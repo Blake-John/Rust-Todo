@@ -54,6 +54,7 @@ pub enum WidgetAction {
     DeleteTask,
     MarkTaskStatus(TaskStatus),
     ArchiveWS,
+    Rename(CurrentFocus),
 }
 
 /// The select direction, whether to go back or forward
@@ -482,8 +483,7 @@ impl Ui {
                                         .confirm_delete(input_rx, terminal, CurrentFocus::Workspace)
                                         .await;
                                 }
-                                // FIXME: even the ws has no todo list it will popup the dialog
-                                if cur_ws_bo.has_todolist(&self.todolist) {
+                                if cur_ws_bo.has_todolist(&self.todolist) && second_confirm {
                                     let input_rx = self.input_rx.clone();
                                     second_confirm = self
                                         .confirm_delete(input_rx, terminal, CurrentFocus::TodoList)
@@ -494,7 +494,6 @@ impl Ui {
                                         &mut self.workspace.workspaces,
                                         cur_ws,
                                     );
-                                    // TODO: add the confirm dialog if the workspace has tasks
                                     let tar_ws = cur_ws_bo.id;
                                     self.workspace.current_workspace = None;
                                     self.workspace.ws_state.select(None);
@@ -510,27 +509,30 @@ impl Ui {
                         let input_rx = self.input_rx.clone();
                         let result = self.delete_item(input_rx, terminal).await;
                         if result {
-                            if let Some(cur_list) = &self.todolist.current_todolist {
-                                let mut cur_list_mut = cur_list.borrow_mut();
-                                // TODO: add confirm dialog if the task has children
-                                cur_list_mut.delete_task();
+                            let cur_list_opt = self.todolist.current_todolist.clone();
+                            let mut to_second_confirm = false;
+                            if let Some(cur_list) = cur_list_opt {
+                                let cur_list = cur_list.borrow();
+                                let cur_task_opt = cur_list.current_task.clone();
+                                if let Some(cur_task) = cur_task_opt {
+                                    let cur_task = cur_task.borrow();
+                                    if !cur_task.children.is_empty() {
+                                        to_second_confirm = true;
+                                    }
+                                }
                             }
+                            if to_second_confirm {
+                                let input_rx = self.input_rx.clone();
+                                let second_confirm = self.confirm_delete(input_rx, terminal, CurrentFocus::TodoList).await;
+                                if second_confirm {
+                                    let cur_list_opt = self.todolist.current_todolist.clone();
+                                    if let Some(cur_list) = cur_list_opt {
+                                        let mut cur_list_mut = cur_list.borrow_mut();
+                                        cur_list_mut.delete_task();
+                                    }
 
-                            // // let ctl = &self.todolist.current_todolist;
-                            // if let Some(cur_list) = &self.todolist.current_todolist {
-                            //     let cur_list_ = cur_list.clone();
-                            //     let ctask = cur_list_.borrow().current_task.clone();
-                            //     if let Some(cur_task) = &ctask {
-                            //         // let cur_task_ = cur_task.clone();
-                            //         TodoWidget::delete_task(
-                            //             &mut self.todolist.todolists,
-                            //             cur_list,
-                            //             cur_task,
-                            //         );
-                            //         self.todolist
-                            //             .change_current_list(&self.workspace.current_workspace);
-                            //     }
-                            // }
+                                }
+                            }
                         }
                         let _ = terminal.draw(|f| self.update(f));
                         let mut apps = appstate.lock().unwrap();
@@ -543,6 +545,52 @@ impl Ui {
                             }
                         }
                         let _ = terminal.draw(|f| self.update(f));
+                    }
+                    WidgetAction::Rename(cur_focus) => {
+                        match cur_focus {
+                            CurrentFocus::Workspace => {
+                                let cur_ws_opt = self.workspace.current_workspace.clone();
+                                if let Some(cur_ws) = &cur_ws_opt {
+                                    let input_rx = self.input_rx.clone();
+                                    let new_name = self.add_item(input_rx, terminal).await;
+                                    if !new_name.is_empty() {
+                                        let mut cur_ws_mut = cur_ws.borrow_mut();
+                                        cur_ws_mut.rename(new_name);
+                                    }
+                                }
+                            }
+                            CurrentFocus::TodoList => {
+                                let mut new_name = String::new();
+                                let mut can_renmae = false;
+                                let cur_todolist_opt = self.todolist.current_todolist.clone();
+                                if let Some(cur_todolist) = cur_todolist_opt {
+                                    let cur_todolist_bor = cur_todolist.borrow();
+                                    let cur_task_opt = cur_todolist_bor.current_task.clone();
+                                    if cur_task_opt.is_some() {
+                                        can_renmae = true;
+                                    }
+                                }
+
+                                if can_renmae {
+                                    let input_rx = self.input_rx.clone();
+                                    new_name = self.add_item(input_rx, terminal).await;
+                                    if !new_name.is_empty() {
+                                        let cur_list_opt = self.todolist.current_todolist.clone();
+                                        if let Some(cur_list) = cur_list_opt {
+                                            let cur_list_bor = cur_list.borrow();
+                                            let cur_task_opt = cur_list_bor.current_task.clone();
+                                            if let Some(cur_task) = cur_task_opt {
+                                                let mut cur_task_mut = cur_task.borrow_mut();
+                                                cur_task_mut.rename(new_name);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        let _ = terminal.draw(|f| self.update(f));
+                        let mut apps = appstate.lock().unwrap();
+                        apps.current_mode = CurrentMode::Normal;
                     }
                     _ => {}
                 },
