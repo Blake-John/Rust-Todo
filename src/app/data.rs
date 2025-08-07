@@ -17,6 +17,7 @@ use crate::app::{
 pub struct Datas {
     pub workspace: WorkspaceWidget,
     pub todolist: TodoWidget,
+    pub archived_ws: WorkspaceWidget,
 }
 
 /// save the application data to spesific file

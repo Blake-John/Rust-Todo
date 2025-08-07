@@ -1,5 +1,6 @@
 use std::{
-    path::Path, sync::{Arc, Mutex}
+    path::Path,
+    sync::{Arc, Mutex},
 };
 use tokio::sync::mpsc;
 
@@ -98,17 +99,25 @@ impl App {
         let apps_in_ui = self.appstate.clone();
         let ui_handle = std::thread::spawn(move || -> Result<(), errors::Errors> {
             let mut ui = ui::Ui::new(ui_rx, input_rx);
-            let path = Path::new(std::env::home_dir().unwrap_or(std::path::PathBuf::from("/home/blake/")).as_path()).join(".todo/data.json");
+            let path = Path::new(
+                std::env::home_dir()
+                    .unwrap_or(std::path::PathBuf::from("/home/blake/"))
+                    .as_path(),
+            )
+            .join(".todo/data.json");
             let data = data::load_data(path.as_path())?;
             ui.workspace = data.workspace;
             ui.todolist = data.todolist;
+            ui.archived_ws = data.archived_ws;
 
             ui.refresh_current();
             let mut apps = apps_in_ui.lock().unwrap();
-            apps.current_focus = if ui.workspace.focused {
-                CurrentFocus::Workspace
-            } else {
+            apps.current_focus = if ui.archived_ws.focused {
+                CurrentFocus::ArchivedWorkspace
+            } else if ui.todolist.focused {
                 CurrentFocus::TodoList
+            } else {
+                CurrentFocus::Workspace
             };
             drop(apps);
             let rt = tokio::runtime::Builder::new_current_thread()
@@ -119,6 +128,7 @@ impl App {
             let datas = Datas {
                 workspace: ui.workspace,
                 todolist: ui.todolist,
+                archived_ws: ui.archived_ws,
             };
 
             data::save_data(path.as_path(), &datas)
@@ -239,20 +249,43 @@ async fn handle_keyevt(
                         event::KeyCode::Char('r') => {
                             let _ = tx.send(Message::Rename).await;
                         }
+                        event::KeyCode::Char('R') => {
+                            let _ = tx.send(Message::Recovery).await;
+                        }
+                        event::KeyCode::Char('f') | event::KeyCode::Char('/') => {
+                            let _ = tx.send(Message::Filter).await;
+                        }
                         event::KeyCode::Tab => match apps.current_focus {
                             CurrentFocus::TodoList => {
                                 let _ =
                                     tx.send(Message::ChangeFocus(CurrentFocus::Workspace)).await;
                             }
                             CurrentFocus::Workspace => {
-                                let _ = tx.send(Message::SelectWorkspace).await;
+                                let _ = tx
+                                    .send(Message::ChangeFocus(CurrentFocus::ArchivedWorkspace))
+                                    .await;
+                            }
+                            CurrentFocus::ArchivedWorkspace => {
+                                let _ = tx.send(Message::ChangeFocus(CurrentFocus::TodoList)).await;
                             }
                         },
-                        event::KeyCode::Enter => {
-                            if let CurrentFocus::Workspace = apps.current_focus {
+                        event::KeyCode::Char('1') => {
+                            let _ = tx.send(Message::ChangeFocus(CurrentFocus::Workspace)).await;
+                        }
+                        event::KeyCode::Char('2') => {
+                            let _ = tx
+                                .send(Message::ChangeFocus(CurrentFocus::ArchivedWorkspace))
+                                .await;
+                        }
+                        event::KeyCode::Char('3') => {
+                            let _ = tx.send(Message::ChangeFocus(CurrentFocus::TodoList)).await;
+                        }
+                        event::KeyCode::Enter => match apps.current_focus {
+                            CurrentFocus::Workspace | CurrentFocus::ArchivedWorkspace => {
                                 let _ = tx.send(Message::SelectWorkspace).await;
                             }
-                        }
+                            _ => (),
+                        },
                         _ => {}
                     },
                     CurrentMode::Insert => match key_evt.code {
@@ -326,6 +359,7 @@ async fn handle_msg(
                         apps.current_mode = CurrentMode::Insert;
                         let _ = ui_tx.send(UiMessage::WAction(WidgetAction::AddTask)).await;
                     }
+                    CurrentFocus::ArchivedWorkspace => {}
                 }
             }
             Message::AddChild => {
@@ -343,6 +377,7 @@ async fn handle_msg(
                             .send(UiMessage::WAction(WidgetAction::AddTaskChild))
                             .await;
                     }
+                    CurrentFocus::ArchivedWorkspace => {}
                 }
             }
             Message::ChangeMode(mode) => {
@@ -356,13 +391,27 @@ async fn handle_msg(
                     .send(match focus {
                         CurrentFocus::Workspace => UiMessage::WAction(WidgetAction::FocusWorkspace),
                         CurrentFocus::TodoList => UiMessage::WAction(WidgetAction::FocusTodolist),
+                        CurrentFocus::ArchivedWorkspace => {
+                            UiMessage::WAction(WidgetAction::FocusArchivedWorkspace)
+                        }
                     })
                     .await;
             }
             Message::SelectWorkspace => {
-                let _ = ui_tx
-                    .send(UiMessage::WAction(WidgetAction::EnterWorkspace))
-                    .await;
+                let app_state = appstate.lock().unwrap();
+                match app_state.current_focus {
+                    CurrentFocus::Workspace => {
+                        let _ = ui_tx
+                            .send(UiMessage::WAction(WidgetAction::EnterWorkspace))
+                            .await;
+                    }
+                    CurrentFocus::ArchivedWorkspace => {
+                        let _ = ui_tx
+                            .send(UiMessage::WAction(WidgetAction::EnterArchivedWorkspace))
+                            .await;
+                    }
+                    _ => {}
+                }
             }
             Message::MoveUp => {
                 let _ = ui_tx.send(UiMessage::WAction(WidgetAction::SelectUp)).await;
@@ -389,11 +438,21 @@ async fn handle_msg(
                             .send(UiMessage::WAction(WidgetAction::DeleteTask))
                             .await;
                     }
+                    CurrentFocus::ArchivedWorkspace => {
+                        let _ = ui_tx
+                            .send(UiMessage::WAction(WidgetAction::DeleteArchivedWorkspace))
+                            .await;
+                    }
                 }
             }
             Message::Archive => {
                 let _ = ui_tx
                     .send(UiMessage::WAction(WidgetAction::ArchiveWS))
+                    .await;
+            }
+            Message::Recovery => {
+                let _ = ui_tx
+                    .send(UiMessage::WAction(WidgetAction::RecoveryWS))
                     .await;
             }
             Message::Complete => {
@@ -429,12 +488,32 @@ async fn handle_msg(
                 app_state.current_mode = CurrentMode::Insert;
                 match app_state.current_focus {
                     CurrentFocus::Workspace => {
-                        let _ = ui_tx.send(UiMessage::WAction(WidgetAction::Rename(CurrentFocus::Workspace))).await;
+                        let _ = ui_tx
+                            .send(UiMessage::WAction(WidgetAction::Rename(
+                                CurrentFocus::Workspace,
+                            )))
+                            .await;
                     }
                     CurrentFocus::TodoList => {
-                        let _ = ui_tx.send(UiMessage::WAction(WidgetAction::Rename(CurrentFocus::TodoList))).await;
+                        let _ = ui_tx
+                            .send(UiMessage::WAction(WidgetAction::Rename(
+                                CurrentFocus::TodoList,
+                            )))
+                            .await;
+                    }
+                    CurrentFocus::ArchivedWorkspace => {
+                        let _ = ui_tx
+                            .send(UiMessage::WAction(WidgetAction::Rename(
+                                CurrentFocus::ArchivedWorkspace,
+                            )))
+                            .await;
                     }
                 }
+            }
+            Message::Filter => {
+                let mut app_state = appstate.lock().unwrap();
+                app_state.current_mode = CurrentMode::Insert;
+                let _ = ui_tx.send(UiMessage::WAction(WidgetAction::Filter)).await;
             }
         }
     }

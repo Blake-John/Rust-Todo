@@ -7,7 +7,13 @@ use ratatui::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::app::ui::{todolistwidget::TodoWidget, SelectAction, SelectBF};
+use crate::app::ui::{SelectAction, SelectBF, todolistwidget::TodoWidget};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum WorkspaceType {
+    Normal,
+    Archived,
+}
 
 /// The Workspace Structure to store the basic information of a workspace
 ///
@@ -65,7 +71,6 @@ impl Workspace {
         false
     }
 
-    // TODO: complete the rename function
     pub fn rename(&mut self, new_name: String) {
         self.desc = new_name;
     }
@@ -87,15 +92,17 @@ pub struct WorkspaceWidget {
     pub focused: bool,
     #[serde(default)]
     pub ws_state: ListState,
+    pub ws_type: WorkspaceType,
 }
 
 impl WorkspaceWidget {
-    pub fn new() -> Self {
+    pub fn new(ws_type: WorkspaceType) -> Self {
         Self {
             workspaces: Vec::<Rc<RefCell<Workspace>>>::new(),
             current_workspace: None,
             focused: true,
             ws_state: ListState::default(),
+            ws_type,
         }
     }
 
@@ -161,11 +168,7 @@ impl WorkspaceWidget {
             let ws = item.borrow();
             let desc = ws.desc.clone();
             let prefix = if !ws.children.is_empty() {
-                if ws.expanded {
-                    "∨ "
-                } else {
-                    "﹥ "
-                }
+                if ws.expanded { "∨ " } else { "﹥ " }
             } else {
                 ""
             };
@@ -212,7 +215,7 @@ impl WorkspaceWidget {
 
 impl Default for WorkspaceWidget {
     fn default() -> Self {
-        Self::new()
+        Self::new(WorkspaceType::Normal)
     }
 }
 
@@ -228,9 +231,15 @@ impl Widget for &mut WorkspaceWidget {
         });
 
         let workspace_block = Block::bordered()
-            .title(" Workspace ".light_green())
+            .title(match self.ws_type {
+                WorkspaceType::Normal => " <1> Workspace ".light_green(),
+                WorkspaceType::Archived => " <2> Archived ".light_yellow(),
+            })
             .border_style(if self.focused {
-                Style::new().fg(Color::LightGreen)
+                Style::new().fg(match self.ws_type {
+                    WorkspaceType::Normal => Color::LightGreen,
+                    WorkspaceType::Archived => Color::LightYellow,
+                })
             } else {
                 Style::new().fg(Color::DarkGray)
             })

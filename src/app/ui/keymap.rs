@@ -13,6 +13,7 @@ pub struct KeyMap {
     pub focus: CurrentFocus,
     pub workspace_hint: Vec<&'static str>,
     pub tasklist_hint: Vec<&'static str>,
+    pub archived_ws_hint: Vec<&'static str>,
 }
 
 impl KeyMap {
@@ -32,6 +33,7 @@ impl Default for KeyMap {
                 "<a>add ",
                 "<x>delete ",
                 "<i>subworkspace ",
+                "<A>archive ",
                 "<r>rename ",
                 "<h>help ",
             ],
@@ -50,6 +52,7 @@ impl Default for KeyMap {
                 "<f>filter ",
                 "<h>help ",
             ],
+            archived_ws_hint: vec!["<x>delete ", "<r>rename ", "<R>recovery ", "<h>help "],
         }
     }
 }
@@ -60,6 +63,7 @@ impl Widget for &mut KeyMap {
         let keymap_hint: &Vec<&str> = match self.focus {
             CurrentFocus::TodoList => &self.tasklist_hint,
             CurrentFocus::Workspace => &self.workspace_hint,
+            CurrentFocus::ArchivedWorkspace => &self.archived_ws_hint,
         };
         let mut hint_span: Vec<Span> = Vec::new();
         keymap_hint.iter().for_each(|hi| {
@@ -78,6 +82,16 @@ impl Widget for &mut KeyMap {
                     hi.chars().enumerate().for_each(|(i, c)| {
                         let style = if i == 1 {
                             Style::new().green()
+                        } else {
+                            Style::new().white()
+                        };
+                        hint_span.push(Span::styled(c.to_string(), style));
+                    });
+                }
+                CurrentFocus::ArchivedWorkspace => {
+                    hi.chars().enumerate().for_each(|(i, c)| {
+                        let style = if i == 1 {
+                            Style::new().yellow()
                         } else {
                             Style::new().white()
                         };

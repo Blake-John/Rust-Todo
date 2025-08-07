@@ -57,11 +57,13 @@ pub enum Message {
     MoveDown,
     Exit,
     Archive,
+    Recovery,
     Complete,
     InProcess,
     Todo,
     Deprecated,
     Rename,
+    Filter,
 }
 
 /// State of which is focused
@@ -69,6 +71,7 @@ pub enum Message {
 pub enum CurrentFocus {
     Workspace,
     TodoList,
+    ArchivedWorkspace,
 }
 
 /// State of which mode is active

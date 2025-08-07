@@ -9,7 +9,7 @@ use ratatui::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::app::ui::{workspacewidget::Workspace, SelectAction, SelectBF};
+use crate::app::ui::{SelectAction, SelectBF, workspacewidget::Workspace};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TaskStatus {
@@ -249,7 +249,7 @@ impl Widget for &mut TodoWidget {
         Self: Sized,
     {
         let block = Block::bordered()
-            .title(" Todo List ".blue())
+            .title(" <3> Todo List ".blue())
             .border_style(if self.focused {
                 Style::new().fg(Color::Blue)
             } else {

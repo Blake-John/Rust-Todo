@@ -45,16 +45,26 @@ pub enum WidgetAction {
     AddWorkspaceChild,
     AddTask,
     AddTaskChild,
+
     SelectUp,
     SelectDown,
+
     FocusWorkspace,
     FocusTodolist,
+    FocusArchivedWorkspace,
+
     EnterWorkspace,
+    EnterArchivedWorkspace,
+
     DeleteWorkspace,
+    DeleteArchivedWorkspace,
     DeleteTask,
+
     MarkTaskStatus(TaskStatus),
     ArchiveWS,
+    RecoveryWS,
     Rename(CurrentFocus),
+    Filter,
 }
 
 /// The select direction, whether to go back or forward
@@ -87,6 +97,7 @@ pub enum InputEvent {
 pub struct Ui {
     pub workspace: WorkspaceWidget,
     pub todolist: TodoWidget,
+    pub archived_ws: WorkspaceWidget,
     pub keymap: KeyMap,
     pub ui_rx: mpsc::Receiver<UiMessage>,
     pub input_rx: Arc<Mutex<mpsc::Receiver<InputEvent>>>,
@@ -127,8 +138,9 @@ pub trait SelectAction<T> {
 impl Ui {
     pub fn new(ui_rx: mpsc::Receiver<UiMessage>, input_rx: mpsc::Receiver<InputEvent>) -> Self {
         Self {
-            workspace: WorkspaceWidget::new(),
+            workspace: WorkspaceWidget::new(workspacewidget::WorkspaceType::Normal),
             todolist: TodoWidget::new(),
+            archived_ws: WorkspaceWidget::new(workspacewidget::WorkspaceType::Archived),
             keymap: KeyMap::default(),
             ui_rx,
             input_rx: Arc::new(Mutex::new(input_rx)),
@@ -139,8 +151,11 @@ impl Ui {
         let layout = Layout::vertical([Constraint::Fill(1), Constraint::Max(1)]).split(f.area());
         let layouts = Layout::horizontal([Constraint::Percentage(20), Constraint::Percentage(80)])
             .split(layout[0]);
+        let ws_layout = Layout::vertical([Constraint::Percentage(80), Constraint::Percentage(20)])
+            .split(layouts[0]);
 
-        f.render_widget(&mut self.workspace, layouts[0]);
+        f.render_widget(&mut self.workspace, ws_layout[0]);
+        f.render_widget(&mut self.archived_ws, ws_layout[1]);
         f.render_widget(&mut self.todolist, layouts[1]);
         f.render_widget(&mut self.keymap, layout[1]);
     }
@@ -194,12 +209,15 @@ impl Ui {
 
     pub fn refresh_current(&mut self) {
         self.workspace.refresh_current();
+        self.archived_ws.refresh_current();
         self.todolist
             .change_current_list(&self.workspace.current_workspace);
-        self.keymap.focus = if self.workspace.focused {
-            CurrentFocus::Workspace
-        } else {
+        self.keymap.focus = if self.archived_ws.focused {
+            CurrentFocus::ArchivedWorkspace
+        } else if self.todolist.focused {
             CurrentFocus::TodoList
+        } else {
+            CurrentFocus::Workspace
         };
     }
 
@@ -262,6 +280,11 @@ impl Ui {
                     "not empty ! ".red(),
                     "still delete ?".yellow(),
                 ]),
+                CurrentFocus::ArchivedWorkspace => Line::from(vec![
+                    "The Archived Workspace is ".into(),
+                    "has been archived ! ".red(),
+                    "still delete ?".yellow(),
+                ]),
             };
             let confirm_line = Line::from(vec!["y/".red(), "n".yellow()]);
             let tip = Text::from(vec![info_line, confirm_line]).centered();
@@ -322,13 +345,22 @@ impl Ui {
                     WidgetAction::FocusWorkspace => {
                         self.workspace.focused = true;
                         self.todolist.focused = false;
+                        self.archived_ws.focused = false;
                         self.keymap.focus = CurrentFocus::Workspace;
                         let _result = terminal.draw(|f| self.update(f));
                     }
                     WidgetAction::FocusTodolist => {
                         self.workspace.focused = false;
                         self.todolist.focused = true;
+                        self.archived_ws.focused = false;
                         self.keymap.focus = CurrentFocus::TodoList;
+                        let _result = terminal.draw(|f| self.update(f));
+                    }
+                    WidgetAction::FocusArchivedWorkspace => {
+                        self.archived_ws.focused = true;
+                        self.todolist.focused = false;
+                        self.workspace.focused = false;
+                        self.keymap.focus = CurrentFocus::ArchivedWorkspace;
                         let _result = terminal.draw(|f| self.update(f));
                     }
                     WidgetAction::AddWorkspace => {
@@ -404,6 +436,17 @@ impl Ui {
                             .change_current_list(&self.workspace.current_workspace);
                         let _result = terminal.draw(|f| self.update(f));
                     }
+                    WidgetAction::EnterArchivedWorkspace => {
+                        let mut apps = appstate.lock().unwrap();
+                        apps.current_focus = CurrentFocus::TodoList;
+                        self.workspace.focused = false;
+                        self.archived_ws.focused = false;
+                        self.todolist.focused = true;
+                        self.keymap.focus = CurrentFocus::TodoList;
+                        self.todolist
+                            .change_current_list(&self.archived_ws.current_workspace);
+                        let _result = terminal.draw(|f| self.update(f));
+                    }
                     WidgetAction::SelectUp => {
                         let apps = appstate.lock().unwrap();
                         match apps.current_focus {
@@ -432,6 +475,17 @@ impl Ui {
                                     );
                                 }
 
+                                let _ = terminal.draw(|f| self.update(f));
+                            }
+                            CurrentFocus::ArchivedWorkspace => {
+                                self.archived_ws.current_workspace = Workspace::get_selected_bf(
+                                    &self.archived_ws.current_workspace,
+                                    &self.archived_ws.workspaces,
+                                    &mut self.archived_ws.ws_state,
+                                    SelectBF::Back,
+                                );
+                                self.todolist
+                                    .change_current_list(&self.archived_ws.current_workspace);
                                 let _ = terminal.draw(|f| self.update(f));
                             }
                         }
@@ -466,6 +520,17 @@ impl Ui {
 
                                 let _ = terminal.draw(|f| self.update(f));
                             }
+                            CurrentFocus::ArchivedWorkspace => {
+                                self.archived_ws.current_workspace = Workspace::get_selected_bf(
+                                    &self.archived_ws.current_workspace,
+                                    &self.archived_ws.workspaces,
+                                    &mut self.archived_ws.ws_state,
+                                    SelectBF::Forward,
+                                );
+                                self.todolist
+                                    .change_current_list(&self.archived_ws.current_workspace);
+                                let _ = terminal.draw(|f| self.update(f));
+                            }
                         }
                     }
                     WidgetAction::DeleteWorkspace => {
@@ -476,7 +541,6 @@ impl Ui {
                             let mut second_confirm = true;
                             if let Some(cur_ws) = &cur_ws_opt {
                                 let cur_ws_bo = cur_ws.borrow();
-                                // NOTE: add the confirm dialog if the workspace has sub ws
                                 if !cur_ws_bo.children.is_empty() {
                                     let input_rx = self.input_rx.clone();
                                     second_confirm = self
@@ -523,14 +587,15 @@ impl Ui {
                             }
                             if to_second_confirm {
                                 let input_rx = self.input_rx.clone();
-                                let second_confirm = self.confirm_delete(input_rx, terminal, CurrentFocus::TodoList).await;
+                                let second_confirm = self
+                                    .confirm_delete(input_rx, terminal, CurrentFocus::TodoList)
+                                    .await;
                                 if second_confirm {
                                     let cur_list_opt = self.todolist.current_todolist.clone();
                                     if let Some(cur_list) = cur_list_opt {
                                         let mut cur_list_mut = cur_list.borrow_mut();
                                         cur_list_mut.delete_task();
                                     }
-
                                 }
                             }
                         }
@@ -560,7 +625,6 @@ impl Ui {
                                 }
                             }
                             CurrentFocus::TodoList => {
-                                let mut new_name = String::new();
                                 let mut can_renmae = false;
                                 let cur_todolist_opt = self.todolist.current_todolist.clone();
                                 if let Some(cur_todolist) = cur_todolist_opt {
@@ -573,7 +637,7 @@ impl Ui {
 
                                 if can_renmae {
                                     let input_rx = self.input_rx.clone();
-                                    new_name = self.add_item(input_rx, terminal).await;
+                                    let new_name = self.add_item(input_rx, terminal).await;
                                     if !new_name.is_empty() {
                                         let cur_list_opt = self.todolist.current_todolist.clone();
                                         if let Some(cur_list) = cur_list_opt {
@@ -587,10 +651,44 @@ impl Ui {
                                     }
                                 }
                             }
+                            CurrentFocus::ArchivedWorkspace => {
+                                let cur_ws_opt = self.archived_ws.current_workspace.clone();
+                                if let Some(cur_ws) = &cur_ws_opt {
+                                    let input_rx = self.input_rx.clone();
+                                    let new_name = self.add_item(input_rx, terminal).await;
+                                    if !new_name.is_empty() {
+                                        let mut cur_ws_mut = cur_ws.borrow_mut();
+                                        cur_ws_mut.rename(new_name);
+                                    }
+                                }
+                            }
                         }
                         let _ = terminal.draw(|f| self.update(f));
                         let mut apps = appstate.lock().unwrap();
                         apps.current_mode = CurrentMode::Normal;
+                    }
+                    // TODO: Implement the filter functionality
+                    WidgetAction::Filter => {}
+                    WidgetAction::ArchiveWS => {
+                        let cur_ws_opt = self.workspace.current_workspace.clone();
+                        if let Some(cur_ws) = &cur_ws_opt {
+                            self.archived_ws.workspaces.push(cur_ws.to_owned());
+                            WorkspaceWidget::delete_item(&mut self.workspace.workspaces, cur_ws);
+                            self.workspace.current_workspace = None;
+                            self.workspace.ws_state.select(None);
+                        }
+                        let _ = terminal.draw(|f| self.update(f));
+                        let mut apps = appstate.lock().unwrap();
+                        apps.current_mode = CurrentMode::Normal;
+                    }
+                    WidgetAction::RecoveryWS => {
+                        let cur_ws_opt = self.archived_ws.current_workspace.clone();
+                        if let Some(cur_ws) = &cur_ws_opt {
+                            self.workspace.workspaces.push(cur_ws.to_owned());
+                            WorkspaceWidget::delete_item(&mut self.archived_ws.workspaces, cur_ws);
+                            self.archived_ws.current_workspace = None;
+                            self.archived_ws.ws_state.select(None);
+                        }
                     }
                     _ => {}
                 },
