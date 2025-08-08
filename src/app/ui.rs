@@ -171,7 +171,7 @@ impl Ui {
         loop {
             let _ = terminal.draw(|f| {
                 self.update(f);
-                let area = Ui::get_popup_window(50, 20, f);
+                let area = Ui::get_popup_window_center(50, 20, f);
                 let block = Block::bordered().title(" Add Item ");
                 textarea.set_block(block);
                 f.render_widget(Clear, area);
@@ -227,7 +227,7 @@ impl Ui {
         terminal: &mut DefaultTerminal,
     ) -> bool {
         let _ = terminal.draw(|f| {
-            let area = Ui::get_popup_window(30, 10, f);
+            let area = Ui::get_popup_window_center(30, 10, f);
             let block = Block::bordered().title(" Warn ").yellow();
             let info_line = Line::from(vec![
                 "Do you want to ".into(),
@@ -267,7 +267,7 @@ impl Ui {
         target: CurrentFocus,
     ) -> bool {
         let _ = terminal.draw(|f| {
-            let area = Ui::get_popup_window(30, 10, f);
+            let area = Ui::get_popup_window_center(30, 10, f);
             let block = Block::bordered().title(" Warn ").yellow();
             let info_line = match target {
                 CurrentFocus::Workspace => Line::from(vec![
@@ -312,7 +312,74 @@ impl Ui {
         }
     }
 
-    pub fn get_popup_window(percent_x: u16, percent_y: u16, f: &mut Frame) -> Rect {
+    pub async fn filter_find(
+        &mut self,
+        input_rx: Arc<Mutex<mpsc::Receiver<InputEvent>>>,
+        terminal: &mut DefaultTerminal,
+    ) {
+        let mut textarea = TextArea::default();
+        let mut item = String::new();
+        let mut receiver = input_rx.lock().unwrap();
+        loop {
+            let _ = terminal.draw(|f| {
+                self.update(f);
+                let area = Ui::get_popup_window(30, 12, 45, 1, f);
+                let filter_block = Block::bordered().title(" find ");
+                textarea.set_block(filter_block);
+                f.render_widget(Clear, area);
+                f.render_widget(&textarea, area);
+            });
+            if let Some(evt) = receiver.recv().await {
+                match evt {
+                    InputEvent::Esc => break,
+                    InputEvent::InsertChar(c) => {
+                        textarea.insert_char(c);
+                    }
+                    InputEvent::Backspace => {
+                        textarea.delete_char();
+                    }
+                    InputEvent::Right => {
+                        textarea.move_cursor(tui_textarea::CursorMove::Forward);
+                    }
+                    InputEvent::Left => {
+                        textarea.move_cursor(tui_textarea::CursorMove::Back);
+                    }
+                    InputEvent::Enter => {
+                        let content = textarea.to_owned().into_lines();
+                        content.iter().for_each(|s| {
+                            item += s;
+                        });
+                        break;
+                    }
+                }
+            }
+        }
+        drop(receiver);
+    }
+
+    pub fn get_popup_window(
+        percent_width: u16,
+        percent_height: u16,
+        x: u16,
+        y: u16,
+        f: &mut Frame,
+    ) -> Rect {
+        let v_leyout = Layout::vertical([
+            Constraint::Percentage(y),
+            Constraint::Percentage(percent_height),
+            Constraint::Fill(1),
+        ])
+        .split(f.area());
+        let h_layout = Layout::horizontal([
+            Constraint::Percentage(x),
+            Constraint::Percentage(percent_width),
+            Constraint::Fill(1),
+        ])
+        .split(v_leyout[1]);
+        h_layout[1]
+    }
+
+    pub fn get_popup_window_center(percent_x: u16, percent_y: u16, f: &mut Frame) -> Rect {
         let layout1 = Layout::horizontal([
             Constraint::Percentage((100 - percent_x) / 2),
             Constraint::Percentage(percent_x),
@@ -668,7 +735,18 @@ impl Ui {
                         apps.current_mode = CurrentMode::Normal;
                     }
                     // TODO: Implement the filter functionality
-                    WidgetAction::Filter => {}
+                    WidgetAction::Filter => {
+                        let cur_list_opt = self.todolist.current_todolist.clone();
+                        if let Some(cur_list) = cur_list_opt {
+                            let input_rx = self.input_rx.clone();
+                            self.filter_find(input_rx, terminal).await;
+                        }
+                        let _ = terminal.draw(|f| {
+                            self.update(f);
+                        });
+                        let mut apps = appstate.lock().unwrap();
+                        apps.current_mode = CurrentMode::Normal;
+                    }
                     WidgetAction::ArchiveWS => {
                         let cur_ws_opt = self.workspace.current_workspace.clone();
                         if let Some(cur_ws) = &cur_ws_opt {

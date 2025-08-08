@@ -49,7 +49,7 @@ impl Default for KeyMap {
                 //TODO: Implement sort functionality
                 "<s>sort ",
                 //TODO: Implement filter functionality
-                "<f>filter ",
+                "<f />filter ",
                 "<h>help ",
             ],
             archived_ws_hint: vec!["<x>delete ", "<r>rename ", "<R>recovery ", "<h>help "],
