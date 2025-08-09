@@ -1,13 +1,13 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use std::vec;
+use std::{task, vec};
 
 use keymap::KeyMap;
 use ratatui::layout::Rect;
-use ratatui::style::Stylize;
+use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::{Line, Text};
-use ratatui::widgets::{Block, Clear, ListState, Paragraph};
+use ratatui::widgets::{Block, Clear, List, ListItem, ListState, Padding, Paragraph};
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Layout},
@@ -323,11 +323,43 @@ impl Ui {
         loop {
             let _ = terminal.draw(|f| {
                 self.update(f);
-                let area = Ui::get_popup_window(30, 12, 45, 1, f);
+
+                let search_string = textarea.to_owned().into_lines();
+                let mut tar_list = Vec::new();
+
+                self.todolist
+                    .current_todolist
+                    .clone()
+                    .unwrap()
+                    .borrow()
+                    .tasks
+                    .iter()
+                    .for_each(|task| {
+                        if task.borrow().is_target(search_string.join(" ")) {
+                            tar_list.push(task.to_owned());
+                        }
+                    });
+                let tar_list_block = Block::bordered()
+                    .title(" <3> Todo List ")
+                    .border_style(Style::new().fg(Color::LightBlue))
+                    .padding(Padding::uniform(1));
+                let task_list = TodoWidget::get_search_list_item(&tar_list, 1);
+                let tar_list_widget = List::new(task_list)
+                    .block(tar_list_block)
+                    .highlight_style(Style::new().add_modifier(Modifier::ITALIC));
+                let layout =
+                    Layout::vertical([Constraint::Fill(1), Constraint::Max(1)]).split(f.area());
+                let tar_list_layout =
+                    Layout::horizontal([Constraint::Percentage(20), Constraint::Percentage(80)])
+                        .split(layout[0])[1];
+                f.render_widget(Clear, tar_list_layout);
+                f.render_widget(tar_list_widget, tar_list_layout);
+
+                let find_area = Ui::get_popup_window(30, 10, 45, 0, f);
                 let filter_block = Block::bordered().title(" find ");
                 textarea.set_block(filter_block);
-                f.render_widget(Clear, area);
-                f.render_widget(&textarea, area);
+                f.render_widget(Clear, find_area);
+                f.render_widget(&textarea, find_area);
             });
             if let Some(evt) = receiver.recv().await {
                 match evt {

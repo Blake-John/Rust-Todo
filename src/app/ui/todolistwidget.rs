@@ -57,6 +57,21 @@ impl Task {
     pub fn rename(&mut self, new_name: String) {
         self.desc = new_name;
     }
+
+    // TODO: use regex to completed the search functionality
+    pub fn is_target(&self, search_string: String) -> bool {
+        let mut result = false;
+        if self.desc.contains(search_string.as_str()) {
+            result = true;
+        }
+        for task in self.children.iter() {
+            if task.borrow().is_target(search_string.to_owned()) {
+                result = true;
+                break;
+            }
+        }
+        result
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -153,6 +168,53 @@ impl TodoWidget {
         }
     }
     pub fn get_task_list_item<'a>(
+        task_list: &[Rc<RefCell<Task>>],
+        dep: usize,
+    ) -> Vec<ListItem<'a>> {
+        let mut task_item = Vec::<ListItem>::new();
+        task_list.iter().for_each(|item| {
+            let task = item.borrow();
+            let desc = task.desc.to_owned();
+            let prefix = match &task.status {
+                TaskStatus::Todo => "▢".white(),
+                TaskStatus::InProcess => "▣".blue(),
+                TaskStatus::Finished => "✓".green(),
+                TaskStatus::Deprecated => "X".red(),
+            };
+            let it = ListItem::new(Line::from(vec![
+                prefix,
+                "  ".repeat(dep).into(),
+                //     .set_style(match &task.status {
+                //     TaskStatus::Finished => Style::new()
+                //         .add_modifier(Modifier::CROSSED_OUT)
+                //         .fg(Color::LightGreen),
+                //     TaskStatus::Deprecated => Style::new()
+                //         .add_modifier(Modifier::CROSSED_OUT)
+                //         .fg(Color::Red),
+                //     _ => Style::default(),
+                // }),
+                desc.set_style(match &task.status {
+                    TaskStatus::Finished => Style::new()
+                        // .add_modifier(Modifier::CROSSED_OUT)
+                        .fg(Color::LightGreen),
+                    TaskStatus::Deprecated => Style::new()
+                        .add_modifier(Modifier::CROSSED_OUT)
+                        .fg(Color::Red),
+                    _ => Style::default(),
+                }),
+            ]));
+            task_item.push(it);
+
+            if task.expanded {
+                let child = TodoWidget::get_task_list_item(&task.children, dep + 1);
+                task_item.extend(child);
+            }
+        });
+
+        task_item
+    }
+
+    pub fn get_search_list_item<'a>(
         task_list: &[Rc<RefCell<Task>>],
         dep: usize,
     ) -> Vec<ListItem<'a>> {
