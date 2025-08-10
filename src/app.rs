@@ -9,7 +9,7 @@ use crossterm::event;
 use crate::app::{
     appstate::{AppState, CurrentFocus, CurrentMode, Message},
     data::Datas,
-    ui::{InputEvent, UiMessage, WidgetAction, todolistwidget::TaskStatus},
+    ui::{InputEvent, SearchEvent, UiMessage, WidgetAction, todolistwidget::TaskStatus},
 };
 
 pub mod appstate;
@@ -190,7 +190,10 @@ async fn handle_keyevt(
             if let event::KeyEventKind::Press = key_evt.kind {
                 let apps = appstate.lock().unwrap();
                 match apps.current_mode {
-                    CurrentMode::Normal => match key_evt.code {
+                    CurrentMode::Normal | CurrentMode::Search => match key_evt.code {
+                        event::KeyCode::Esc => {
+                            let _ = tx.send(Message::SearchMsg(SearchEvent::Exit)).await;
+                        }
                         event::KeyCode::Char('q') => {
                             let _ = tx.send(Message::Exit).await;
                             break;
@@ -308,7 +311,14 @@ async fn handle_keyevt(
                             let _ = input_tx.send(InputEvent::Right).await;
                         }
                         _ => {}
-                    },
+                    }, // CurrentMode::Search => match key_evt.code {
+                       //     event::KeyCode::Char('n') => {
+                       //         let _ = tx.send(Message::SearchMsg(SearchEvent::Next)).await;
+                       //     }
+                       //     event::KeyCode::Char('N') => {
+                       //         let _ = tx.send(Message::SearchMsg(SearchEvent::Previous)).await;
+                       //     }
+                       // },
                 }
             }
         } else if let event::Event::Resize(_, _) = evt {
@@ -514,6 +524,15 @@ async fn handle_msg(
                 let mut app_state = appstate.lock().unwrap();
                 app_state.current_mode = CurrentMode::Insert;
                 let _ = ui_tx.send(UiMessage::WAction(WidgetAction::Filter)).await;
+            }
+            Message::SearchMsg(search_msg) => {
+                if let SearchEvent::Exit = search_msg {
+                    let mut app_state = appstate.lock().unwrap();
+                    app_state.current_mode = CurrentMode::Normal;
+                    let _ = ui_tx
+                        .send(UiMessage::WAction(WidgetAction::ExitFilter))
+                        .await;
+                }
             }
         }
     }

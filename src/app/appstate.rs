@@ -1,3 +1,5 @@
+use crate::app::ui::SearchEvent;
+
 /// Structure for app state
 ///
 /// # Fields
@@ -70,6 +72,7 @@ pub enum Message {
     Deprecated,
     Rename,
     Filter,
+    SearchMsg(SearchEvent),
 }
 
 /// State of which is focused
@@ -85,4 +88,5 @@ pub enum CurrentFocus {
 pub enum CurrentMode {
     Normal,
     Insert,
+    Search,
 }

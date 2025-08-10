@@ -160,6 +160,10 @@ pub struct TodoWidget {
     pub todolists: Vec<Rc<RefCell<TodoList>>>,
     pub current_todolist: Option<Rc<RefCell<TodoList>>>,
     pub focused: bool,
+
+    #[serde(skip)]
+    #[serde(default)]
+    pub search_string: String,
 }
 
 impl TodoWidget {
@@ -168,6 +172,7 @@ impl TodoWidget {
             todolists: Vec::new(),
             current_todolist: None,
             focused: false,
+            search_string: String::new(),
         }
     }
     pub fn get_task_list_item<'a>(
@@ -232,7 +237,7 @@ impl TodoWidget {
                 TaskStatus::Finished => "✓".green(),
                 TaskStatus::Deprecated => "".red(),
             };
-            let mut contents = vec![prefix, "  ".repeat(dep).into()];
+            let mut contents = Vec::new();
             if !search_string.is_empty() {
                 let search_strings = search_string.split(" ");
                 let mut idx_str: Vec<(usize, &str)> = Vec::new();
@@ -240,23 +245,46 @@ impl TodoWidget {
                     let mut v: Vec<(usize, &str)> = desc.match_indices(s).collect();
                     idx_str.append(&mut v);
                 });
-                idx_str.sort_by(|a, b| a.0.cmp(&b.0));
-                let mut idx_str_merged: Vec<(usize, usize)> = Vec::new();
-                for (idx, s) in idx_str {
-                    if let Some(last) = idx_str_merged.last_mut()
-                        && idx < last.1
-                    {
-                        last.1 = last.1.max(idx + s.len());
-                        continue;
+                if !idx_str.is_empty() {
+                    contents.extend(vec![prefix, "  ".repeat(dep).into()]);
+                    idx_str.sort_by(|a, b| a.0.cmp(&b.0));
+                    let mut idx_str_merged: Vec<(usize, usize)> = Vec::new();
+                    for (idx, s) in idx_str {
+                        if let Some(last) = idx_str_merged.last_mut()
+                            && idx < last.1
+                        {
+                            last.1 = last.1.max(idx + s.len());
+                            continue;
+                        }
+                        idx_str_merged.push((idx, idx + s.len()));
                     }
-                    idx_str_merged.push((idx, idx + s.len()));
-                }
-                let mut cursor = 0;
-                for (s, e) in idx_str_merged {
-                    if s > cursor {
+                    let mut cursor = 0;
+                    for (s, e) in idx_str_merged {
+                        if s > cursor {
+                            contents.push(
+                                desc[cursor..s].to_owned().set_style(match &task.status {
+                                    TaskStatus::Finished => Style::new().fg(Color::LightGreen),
+                                    TaskStatus::Deprecated => Style::new()
+                                        .add_modifier(Modifier::CROSSED_OUT)
+                                        .fg(Color::Red),
+                                    _ => Style::default(),
+                                }),
+                            );
+                        }
                         contents.push(
-                            desc[cursor..s].to_owned().set_style(match &task.status {
-                                TaskStatus::Finished => Style::new().fg(Color::LightGreen),
+                            desc[s..e]
+                                .to_owned()
+                                .light_yellow()
+                                .add_modifier(Modifier::ITALIC),
+                        );
+                        cursor = e;
+                    }
+                    if cursor < desc.len() {
+                        contents.push(
+                            desc[cursor..].to_owned().set_style(match &task.status {
+                                TaskStatus::Finished => Style::new()
+                                    // .add_modifier(Modifier::CROSSED_OUT)
+                                    .fg(Color::LightGreen),
                                 TaskStatus::Deprecated => Style::new()
                                     .add_modifier(Modifier::CROSSED_OUT)
                                     .fg(Color::Red),
@@ -264,28 +292,9 @@ impl TodoWidget {
                             }),
                         );
                     }
-                    contents.push(
-                        desc[s..e]
-                            .to_owned()
-                            .light_yellow()
-                            .add_modifier(Modifier::ITALIC),
-                    );
-                    cursor = e;
-                }
-                if cursor < desc.len() {
-                    contents.push(
-                        desc[cursor..].to_owned().set_style(match &task.status {
-                            TaskStatus::Finished => Style::new()
-                                // .add_modifier(Modifier::CROSSED_OUT)
-                                .fg(Color::LightGreen),
-                            TaskStatus::Deprecated => Style::new()
-                                .add_modifier(Modifier::CROSSED_OUT)
-                                .fg(Color::Red),
-                            _ => Style::default(),
-                        }),
-                    );
                 }
             } else {
+                contents.extend(vec![prefix, "  ".repeat(dep).into()]);
                 contents.push(
                     desc.set_style(match &task.status {
                         TaskStatus::Finished => Style::new().fg(Color::LightGreen),
@@ -296,54 +305,10 @@ impl TodoWidget {
                     }),
                 );
             }
-            // let mut spans = Vec::new();
-            // spans.push(prefix);
-            // spans.push("  ".repeat(dep).into());
-            // search_strings.clone().for_each(|s| {
-            //     if !s.is_empty() {
-            //         let mut tar_idx = 0;
-            //         for (idx, tar_str) in desc.match_indices(s) {
-            //             if idx > tar_idx {
-            //                 spans.push(Span::raw(&desc[tar_idx..idx]));
-            //             }
-            //             tar_idx = idx + tar_str.len();
-            //             spans.push(Span::styled(
-            //                 tar_str,
-            //                 Style::new()
-            //                     .fg(Color::LightYellow)
-            //                     .add_modifier(Modifier::ITALIC),
-            //             ));
-            //         }
-            //         if tar_idx < s.len() {
-            //             spans.push(Span::raw(&desc[tar_idx..]));
-            //         }
-            //     }
-            // });
-
-            let it = ListItem::new(Line::from(contents));
-            // let it = ListItem::new(Line::from(vec![
-            //     prefix,
-            //     "  ".repeat(dep).into(),
-            //     //     .set_style(match &task.status {
-            //     //     TaskStatus::Finished => Style::new()
-            //     //         .add_modifier(Modifier::CROSSED_OUT)
-            //     //         .fg(Color::LightGreen),
-            //     //     TaskStatus::Deprecated => Style::new()
-            //     //         .add_modifier(Modifier::CROSSED_OUT)
-            //     //         .fg(Color::Red),
-            //     //     _ => Style::default(),
-            //     // }),
-            //     desc.set_style(match &task.status {
-            //         TaskStatus::Finished => Style::new()
-            //             // .add_modifier(Modifier::CROSSED_OUT)
-            //             .fg(Color::LightGreen),
-            //         TaskStatus::Deprecated => Style::new()
-            //             .add_modifier(Modifier::CROSSED_OUT)
-            //             .fg(Color::Red),
-            //         _ => Style::default(),
-            //     }),
-            // ]));
-            task_item.push(it);
+            if !contents.is_empty() {
+                let it = ListItem::new(Line::from(contents));
+                task_item.push(it);
+            }
 
             if task.expanded {
                 let child = TodoWidget::get_task_list_item(&task.children, dep + 1);
@@ -414,22 +379,36 @@ impl Widget for &mut TodoWidget {
 
         let todo_listitems = Vec::<ListItem>::new();
         if let Some(todolist) = &self.current_todolist {
-            let tasks = todolist.borrow().tasks.to_owned();
-            let task_list = TodoWidget::get_task_list_item(&tasks, 1);
-            // task_list.iter().for_each(|task| {
-            //     todo_listitems.push(ListItem::new(task));
-            // });
-            let listwidget = List::new(task_list)
-                .block(block)
-                .highlight_style(if self.focused {
-                    Style::new().bg(Color::Rgb(66, 80, 102))
-                } else {
-                    Style::new()
-                });
-            // let state = &mut todolist.borrow_mut().state;
-            let state = &mut todolist.borrow_mut().state;
+            if self.search_string.is_empty() {
+                let tasks = todolist.borrow().tasks.to_owned();
+                let task_list = TodoWidget::get_task_list_item(&tasks, 1);
+                let listwidget =
+                    List::new(task_list)
+                        .block(block)
+                        .highlight_style(if self.focused {
+                            Style::new().bg(Color::Rgb(66, 80, 102))
+                        } else {
+                            Style::new()
+                        });
+                let state = &mut todolist.borrow_mut().state;
 
-            StatefulWidget::render(listwidget, area, buf, state);
+                StatefulWidget::render(listwidget, area, buf, state);
+            } else {
+                let tasks = todolist.borrow().tasks.to_owned();
+                let task_list =
+                    TodoWidget::get_search_list_item(self.search_string.clone(), &tasks, 1);
+                let listwidget =
+                    List::new(task_list)
+                        .block(block)
+                        .highlight_style(if self.focused {
+                            Style::new().bg(Color::Rgb(66, 80, 102))
+                        } else {
+                            Style::new()
+                        });
+                let state = &mut todolist.borrow_mut().state;
+
+                StatefulWidget::render(listwidget, area, buf, state);
+            }
         } else {
             let listwidget =
                 List::new(todo_listitems)

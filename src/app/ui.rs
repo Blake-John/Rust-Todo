@@ -5,7 +5,7 @@ use std::vec;
 
 use keymap::KeyMap;
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Modifier, Style, Stylize};
+use ratatui::style::{Color, Style, Stylize};
 use ratatui::text::{Line, Text};
 use ratatui::widgets::{Block, Clear, List, ListState, Padding, Paragraph};
 use ratatui::{
@@ -65,6 +65,7 @@ pub enum WidgetAction {
     RecoveryWS,
     Rename(CurrentFocus),
     Filter,
+    ExitFilter,
 }
 
 /// The select direction, whether to go back or forward
@@ -83,6 +84,13 @@ pub enum InputEvent {
     Right,
     Enter,
     Esc,
+}
+
+#[derive(Debug)]
+pub enum SearchEvent {
+    Next,
+    Previous,
+    Exit,
 }
 
 /// The Basic Structure of the UI
@@ -316,7 +324,7 @@ impl Ui {
         &mut self,
         input_rx: Arc<Mutex<mpsc::Receiver<InputEvent>>>,
         terminal: &mut DefaultTerminal,
-    ) {
+    ) -> String {
         let mut textarea = TextArea::default();
         let mut item = String::new();
         let mut receiver = input_rx.lock().unwrap();
@@ -386,6 +394,7 @@ impl Ui {
             }
         }
         drop(receiver);
+        item
     }
 
     pub fn get_popup_window(
@@ -496,11 +505,11 @@ impl Ui {
                     WidgetAction::AddTask => {
                         let input_rx = self.input_rx.clone();
                         let result = self.add_item(input_rx, terminal).await;
-                        if !result.is_empty() {
-                            if let Some(ctl) = &self.todolist.current_todolist {
-                                let mut ctl_mut = ctl.borrow_mut();
-                                ctl_mut.add_task(Rc::new(RefCell::new(Task::new(result, None))));
-                            }
+                        if !result.is_empty()
+                            && let Some(ctl) = &self.todolist.current_todolist
+                        {
+                            let mut ctl_mut = ctl.borrow_mut();
+                            ctl_mut.add_task(Rc::new(RefCell::new(Task::new(result, None))));
                         }
                         let _ = terminal.draw(|f| {
                             self.update(f);
@@ -511,12 +520,11 @@ impl Ui {
                     WidgetAction::AddTaskChild => {
                         let input_rx = self.input_rx.clone();
                         let result = self.add_item(input_rx, terminal).await;
-                        if !result.is_empty() {
-                            if let Some(ctl) = &self.todolist.current_todolist {
-                                let mut ctl_mut = ctl.borrow_mut();
-                                ctl_mut
-                                    .add_child_task(Rc::new(RefCell::new(Task::new(result, None))));
-                            }
+                        if !result.is_empty()
+                            && let Some(ctl) = &self.todolist.current_todolist
+                        {
+                            let mut ctl_mut = ctl.borrow_mut();
+                            ctl_mut.add_child_task(Rc::new(RefCell::new(Task::new(result, None))));
                         }
                         let _ = terminal.draw(|f| {
                             self.update(f);
@@ -695,6 +703,12 @@ impl Ui {
                                         cur_list_mut.delete_task();
                                     }
                                 }
+                            } else {
+                                let cur_list_opt = self.todolist.current_todolist.clone();
+                                if let Some(cur_list) = cur_list_opt {
+                                    let mut cur_list_mut = cur_list.borrow_mut();
+                                    cur_list_mut.delete_task();
+                                }
                             }
                         }
                         let _ = terminal.draw(|f| self.update(f));
@@ -775,7 +789,24 @@ impl Ui {
                         let cur_list_opt = self.todolist.current_todolist.clone();
                         if cur_list_opt.is_some() {
                             let input_rx = self.input_rx.clone();
-                            self.filter_find(input_rx, terminal).await;
+                            let result = self.filter_find(input_rx, terminal).await;
+                            self.todolist.search_string = result;
+                            if let Some(cur_list) = &self.todolist.current_todolist {
+                                let mut cur_list_mut = cur_list.borrow_mut();
+                                cur_list_mut.state.select_first();
+                            }
+                        }
+                        let _ = terminal.draw(|f| {
+                            self.update(f);
+                        });
+                        let mut apps = appstate.lock().unwrap();
+                        apps.current_mode = CurrentMode::Search;
+                    }
+                    WidgetAction::ExitFilter => {
+                        self.todolist.search_string = String::new();
+                        if let Some(cur_list) = &self.todolist.current_todolist {
+                            let mut cur_list_mut = cur_list.borrow_mut();
+                            cur_list_mut.state = ListState::default();
                         }
                         let _ = terminal.draw(|f| {
                             self.update(f);
