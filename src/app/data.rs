@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::app::{
     errors,
-    ui::{todolistwidget::TodoWidget, workspacewidget::WorkspaceWidget},
+    ui::{
+        todolistwidget::TodoWidget,
+        workspacewidget::{self, WorkspaceType, WorkspaceWidget},
+    },
 };
 
 /// Struct to store the data of the application only when loading and saving datas
@@ -13,11 +16,21 @@ use crate::app::{
 ///
 /// - `workspace` ([`WorkspaceWidget`])
 /// - `todolist` ([`TodoWidget`])
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Datas {
     pub workspace: WorkspaceWidget,
     pub todolist: TodoWidget,
     pub archived_ws: WorkspaceWidget,
+}
+
+impl Default for Datas {
+    fn default() -> Self {
+        Self {
+            workspace: workspacewidget::WorkspaceWidget::new(WorkspaceType::Normal),
+            todolist: TodoWidget::new(),
+            archived_ws: workspacewidget::WorkspaceWidget::new(WorkspaceType::Archived),
+        }
+    }
 }
 
 /// save the application data to spesific file
@@ -36,8 +49,8 @@ pub struct Datas {
 /// more detials see [`errors::Errors`]
 pub fn save_data(path: &Path, datas: &Datas) -> Result<(), errors::Errors> {
     let res = serde_json::to_string_pretty(datas).unwrap();
-    let write_res = fs::write(path, res).map_err(|_| errors::Errors::WriteError);
-    write_res
+
+    fs::write(path, res).map_err(|_| errors::Errors::WriteError)
 }
 
 /// load the data from the specific file

@@ -60,10 +60,13 @@ impl Task {
 
     // TODO: use regex to completed the search functionality
     pub fn is_target(&self, search_string: String) -> bool {
+        let search_strings = search_string.split(" ");
         let mut result = false;
-        if self.desc.contains(search_string.as_str()) {
-            result = true;
-        }
+        search_strings.into_iter().for_each(|s| {
+            if self.desc.contains(s) {
+                result = true;
+            }
+        });
         for task in self.children.iter() {
             if task.borrow().is_target(search_string.to_owned()) {
                 result = true;
@@ -179,7 +182,7 @@ impl TodoWidget {
                 TaskStatus::Todo => "▢".white(),
                 TaskStatus::InProcess => "▣".blue(),
                 TaskStatus::Finished => "✓".green(),
-                TaskStatus::Deprecated => "X".red(),
+                TaskStatus::Deprecated => "".red(),
             };
             let it = ListItem::new(Line::from(vec![
                 prefix,
@@ -215,6 +218,7 @@ impl TodoWidget {
     }
 
     pub fn get_search_list_item<'a>(
+        search_string: String,
         task_list: &[Rc<RefCell<Task>>],
         dep: usize,
     ) -> Vec<ListItem<'a>> {
@@ -226,30 +230,119 @@ impl TodoWidget {
                 TaskStatus::Todo => "▢".white(),
                 TaskStatus::InProcess => "▣".blue(),
                 TaskStatus::Finished => "✓".green(),
-                TaskStatus::Deprecated => "X".red(),
+                TaskStatus::Deprecated => "".red(),
             };
-            let it = ListItem::new(Line::from(vec![
-                prefix,
-                "  ".repeat(dep).into(),
-                //     .set_style(match &task.status {
-                //     TaskStatus::Finished => Style::new()
-                //         .add_modifier(Modifier::CROSSED_OUT)
-                //         .fg(Color::LightGreen),
-                //     TaskStatus::Deprecated => Style::new()
-                //         .add_modifier(Modifier::CROSSED_OUT)
-                //         .fg(Color::Red),
-                //     _ => Style::default(),
-                // }),
-                desc.set_style(match &task.status {
-                    TaskStatus::Finished => Style::new()
-                        // .add_modifier(Modifier::CROSSED_OUT)
-                        .fg(Color::LightGreen),
-                    TaskStatus::Deprecated => Style::new()
-                        .add_modifier(Modifier::CROSSED_OUT)
-                        .fg(Color::Red),
-                    _ => Style::default(),
-                }),
-            ]));
+            let mut contents = vec![prefix, "  ".repeat(dep).into()];
+            if !search_string.is_empty() {
+                let search_strings = search_string.split(" ");
+                let mut idx_str: Vec<(usize, &str)> = Vec::new();
+                search_strings.for_each(|s| {
+                    let mut v: Vec<(usize, &str)> = desc.match_indices(s).collect();
+                    idx_str.append(&mut v);
+                });
+                idx_str.sort_by(|a, b| a.0.cmp(&b.0));
+                let mut idx_str_merged: Vec<(usize, usize)> = Vec::new();
+                for (idx, s) in idx_str {
+                    if let Some(last) = idx_str_merged.last_mut()
+                        && idx < last.1
+                    {
+                        last.1 = last.1.max(idx + s.len());
+                        continue;
+                    }
+                    idx_str_merged.push((idx, idx + s.len()));
+                }
+                let mut cursor = 0;
+                for (s, e) in idx_str_merged {
+                    if s > cursor {
+                        contents.push(
+                            desc[cursor..s].to_owned().set_style(match &task.status {
+                                TaskStatus::Finished => Style::new().fg(Color::LightGreen),
+                                TaskStatus::Deprecated => Style::new()
+                                    .add_modifier(Modifier::CROSSED_OUT)
+                                    .fg(Color::Red),
+                                _ => Style::default(),
+                            }),
+                        );
+                    }
+                    contents.push(
+                        desc[s..e]
+                            .to_owned()
+                            .light_yellow()
+                            .add_modifier(Modifier::ITALIC),
+                    );
+                    cursor = e;
+                }
+                if cursor < desc.len() {
+                    contents.push(
+                        desc[cursor..].to_owned().set_style(match &task.status {
+                            TaskStatus::Finished => Style::new()
+                                // .add_modifier(Modifier::CROSSED_OUT)
+                                .fg(Color::LightGreen),
+                            TaskStatus::Deprecated => Style::new()
+                                .add_modifier(Modifier::CROSSED_OUT)
+                                .fg(Color::Red),
+                            _ => Style::default(),
+                        }),
+                    );
+                }
+            } else {
+                contents.push(
+                    desc.set_style(match &task.status {
+                        TaskStatus::Finished => Style::new().fg(Color::LightGreen),
+                        TaskStatus::Deprecated => Style::new()
+                            .add_modifier(Modifier::CROSSED_OUT)
+                            .fg(Color::Red),
+                        _ => Style::default(),
+                    }),
+                );
+            }
+            // let mut spans = Vec::new();
+            // spans.push(prefix);
+            // spans.push("  ".repeat(dep).into());
+            // search_strings.clone().for_each(|s| {
+            //     if !s.is_empty() {
+            //         let mut tar_idx = 0;
+            //         for (idx, tar_str) in desc.match_indices(s) {
+            //             if idx > tar_idx {
+            //                 spans.push(Span::raw(&desc[tar_idx..idx]));
+            //             }
+            //             tar_idx = idx + tar_str.len();
+            //             spans.push(Span::styled(
+            //                 tar_str,
+            //                 Style::new()
+            //                     .fg(Color::LightYellow)
+            //                     .add_modifier(Modifier::ITALIC),
+            //             ));
+            //         }
+            //         if tar_idx < s.len() {
+            //             spans.push(Span::raw(&desc[tar_idx..]));
+            //         }
+            //     }
+            // });
+
+            let it = ListItem::new(Line::from(contents));
+            // let it = ListItem::new(Line::from(vec![
+            //     prefix,
+            //     "  ".repeat(dep).into(),
+            //     //     .set_style(match &task.status {
+            //     //     TaskStatus::Finished => Style::new()
+            //     //         .add_modifier(Modifier::CROSSED_OUT)
+            //     //         .fg(Color::LightGreen),
+            //     //     TaskStatus::Deprecated => Style::new()
+            //     //         .add_modifier(Modifier::CROSSED_OUT)
+            //     //         .fg(Color::Red),
+            //     //     _ => Style::default(),
+            //     // }),
+            //     desc.set_style(match &task.status {
+            //         TaskStatus::Finished => Style::new()
+            //             // .add_modifier(Modifier::CROSSED_OUT)
+            //             .fg(Color::LightGreen),
+            //         TaskStatus::Deprecated => Style::new()
+            //             .add_modifier(Modifier::CROSSED_OUT)
+            //             .fg(Color::Red),
+            //         _ => Style::default(),
+            //     }),
+            // ]));
             task_item.push(it);
 
             if task.expanded {

@@ -1,13 +1,13 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
-use std::{task, vec};
+use std::vec;
 
 use keymap::KeyMap;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::{Line, Text};
-use ratatui::widgets::{Block, Clear, List, ListItem, ListState, Padding, Paragraph};
+use ratatui::widgets::{Block, Clear, List, ListState, Padding, Paragraph};
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Layout},
@@ -343,10 +343,9 @@ impl Ui {
                     .title(" <3> Todo List ")
                     .border_style(Style::new().fg(Color::LightBlue))
                     .padding(Padding::uniform(1));
-                let task_list = TodoWidget::get_search_list_item(&tar_list, 1);
-                let tar_list_widget = List::new(task_list)
-                    .block(tar_list_block)
-                    .highlight_style(Style::new().add_modifier(Modifier::ITALIC));
+                let task_list =
+                    TodoWidget::get_search_list_item(search_string.join(" "), &tar_list, 1);
+                let tar_list_widget = List::new(task_list).block(tar_list_block);
                 let layout =
                     Layout::vertical([Constraint::Fill(1), Constraint::Max(1)]).split(f.area());
                 let tar_list_layout =
@@ -703,11 +702,16 @@ impl Ui {
                         apps.current_mode = CurrentMode::Normal;
                     }
                     WidgetAction::MarkTaskStatus(status) => {
-                        if let Some(cur_list) = &self.todolist.current_todolist {
-                            if let Some(cur_task) = &cur_list.borrow().current_task {
-                                Task::set_task_status(cur_task, status);
-                            }
+                        if let Some(cur_list) = &self.todolist.current_todolist
+                            && let Some(cur_task) = &cur_list.borrow().current_task
+                        {
+                            Task::set_task_status(cur_task, status);
                         }
+                        // if let Some(cur_list) = &self.todolist.current_todolist {
+                        //     if let Some(cur_task) = &cur_list.borrow().current_task {
+                        //         Task::set_task_status(cur_task, status);
+                        //     }
+                        // }
                         let _ = terminal.draw(|f| self.update(f));
                     }
                     WidgetAction::Rename(cur_focus) => {
@@ -769,7 +773,7 @@ impl Ui {
                     // TODO: Implement the filter functionality
                     WidgetAction::Filter => {
                         let cur_list_opt = self.todolist.current_todolist.clone();
-                        if let Some(cur_list) = cur_list_opt {
+                        if cur_list_opt.is_some() {
                             let input_rx = self.input_rx.clone();
                             self.filter_find(input_rx, terminal).await;
                         }
