@@ -179,7 +179,8 @@ impl Ui {
         loop {
             let _ = terminal.draw(|f| {
                 self.update(f);
-                let area = Ui::get_popup_window_center(50, 20, f);
+                // let area = Ui::get_popup_window_center(50, 20, f);
+                let area = Ui::get_add_item_window(f);
                 let block = Block::bordered().title(" Add Item ");
                 textarea.set_block(block);
                 f.render_widget(Clear, area);
@@ -235,7 +236,8 @@ impl Ui {
         terminal: &mut DefaultTerminal,
     ) -> bool {
         let _ = terminal.draw(|f| {
-            let area = Ui::get_popup_window_center(30, 10, f);
+            // let area = Ui::get_popup_window_center(30, 10, f);
+            let area = Ui::get_confirm_window(f);
             let block = Block::bordered().title(" Warn ").yellow();
             let info_line = Line::from(vec![
                 "Do you want to ".into(),
@@ -275,7 +277,8 @@ impl Ui {
         target: CurrentFocus,
     ) -> bool {
         let _ = terminal.draw(|f| {
-            let area = Ui::get_popup_window_center(30, 10, f);
+            // let area = Ui::get_popup_window_center(30, 10, f);
+            let area = Ui::get_confirm_window(f);
             let block = Block::bordered().title(" Warn ").yellow();
             let info_line = match target {
                 CurrentFocus::Workspace => Line::from(vec![
@@ -362,7 +365,8 @@ impl Ui {
                 f.render_widget(Clear, tar_list_layout);
                 f.render_widget(tar_list_widget, tar_list_layout);
 
-                let find_area = Ui::get_popup_window(30, 10, 45, 0, f);
+                // let find_area = Ui::get_popup_window(30, 10, 45, 0, f);
+                let find_area = Ui::get_filter_window(f);
                 let filter_block = Block::bordered().title(" find ");
                 textarea.set_block(filter_block);
                 f.render_widget(Clear, find_area);
@@ -404,7 +408,7 @@ impl Ui {
         y: u16,
         f: &mut Frame,
     ) -> Rect {
-        let v_leyout = Layout::vertical([
+        let v_layout = Layout::vertical([
             Constraint::Percentage(y),
             Constraint::Percentage(percent_height),
             Constraint::Fill(1),
@@ -415,7 +419,52 @@ impl Ui {
             Constraint::Percentage(percent_width),
             Constraint::Fill(1),
         ])
-        .split(v_leyout[1]);
+        .split(v_layout[1]);
+        h_layout[1]
+    }
+
+    pub fn get_filter_window(f: &mut Frame) -> Rect {
+        let v_layout =
+            Layout::vertical([Constraint::Min(3), Constraint::Percentage(100)]).split(f.area());
+
+        let h_layout = Layout::horizontal([
+            Constraint::Percentage(45),
+            Constraint::Percentage(30),
+            Constraint::Fill(1),
+        ])
+        .split(v_layout[0]);
+        h_layout[1]
+    }
+
+    pub fn get_add_item_window(f: &mut Frame) -> Rect {
+        let v_layout = Layout::vertical([
+            Constraint::Percentage(50),
+            Constraint::Min(3),
+            Constraint::Percentage(50),
+        ])
+        .split(f.area());
+        let h_layout = Layout::horizontal([
+            Constraint::Fill(1),
+            Constraint::Min(40),
+            Constraint::Fill(1),
+        ])
+        .split(v_layout[1]);
+        h_layout[1]
+    }
+
+    pub fn get_confirm_window(f: &mut Frame) -> Rect {
+        let v_layout = Layout::vertical([
+            Constraint::Percentage(50),
+            Constraint::Min(4),
+            Constraint::Percentage(50),
+        ])
+        .split(f.area());
+        let h_layout = Layout::horizontal([
+            Constraint::Fill(1),
+            Constraint::Min(40),
+            Constraint::Fill(1),
+        ])
+        .split(v_layout[1]);
         h_layout[1]
     }
 
