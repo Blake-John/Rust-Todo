@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::vec;
 
-use keymap::KeyMap;
+use keymap::KeymapWidget;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::text::{Line, Text};
@@ -19,6 +19,7 @@ use crate::app::appstate::{AppState, CurrentFocus, CurrentMode};
 use crate::app::ui::todolistwidget::{Task, TaskStatus, TodoList, TodoWidget};
 use crate::app::ui::workspacewidget::Workspace;
 
+pub mod helpwidget;
 pub mod keymap;
 pub mod todolistwidget;
 pub mod workspacewidget;
@@ -106,7 +107,7 @@ pub struct Ui {
     pub workspace: WorkspaceWidget,
     pub todolist: TodoWidget,
     pub archived_ws: WorkspaceWidget,
-    pub keymap: KeyMap,
+    pub keymap: KeymapWidget,
     pub ui_rx: mpsc::Receiver<UiMessage>,
     pub input_rx: Arc<Mutex<mpsc::Receiver<InputEvent>>>,
 }
@@ -149,7 +150,7 @@ impl Ui {
             workspace: WorkspaceWidget::new(workspacewidget::WorkspaceType::Normal),
             todolist: TodoWidget::new(),
             archived_ws: WorkspaceWidget::new(workspacewidget::WorkspaceType::Archived),
-            keymap: KeyMap::default(),
+            keymap: KeymapWidget::default(),
             ui_rx,
             input_rx: Arc::new(Mutex::new(input_rx)),
         }
@@ -843,6 +844,14 @@ impl Ui {
                             if let Some(cur_list) = &self.todolist.current_todolist {
                                 let mut cur_list_mut = cur_list.borrow_mut();
                                 cur_list_mut.state.select_first();
+                                // FIXME: selected in list and current_task does not match
+                                for task in cur_list_mut.tasks.iter() {
+                                    if task.borrow().is_target(self.todolist.search_string.clone())
+                                    {
+                                        cur_list_mut.current_task = Some(task.to_owned());
+                                        break;
+                                    }
+                                }
                             }
                         }
                         let _ = terminal.draw(|f| {

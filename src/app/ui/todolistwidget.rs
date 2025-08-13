@@ -292,6 +292,17 @@ impl TodoWidget {
                             }),
                         );
                     }
+                } else {
+                    contents.extend(vec![prefix, "  ".repeat(dep).into()]);
+                    contents.push(
+                        desc.set_style(match &task.status {
+                            TaskStatus::Finished => Style::new().fg(Color::LightGreen),
+                            TaskStatus::Deprecated => Style::new()
+                                .add_modifier(Modifier::CROSSED_OUT)
+                                .fg(Color::Red),
+                            _ => Style::default(),
+                        }),
+                    );
                 }
             } else {
                 contents.extend(vec![prefix, "  ".repeat(dep).into()]);
@@ -305,15 +316,32 @@ impl TodoWidget {
                     }),
                 );
             }
-            if !contents.is_empty() {
-                let it = ListItem::new(Line::from(contents));
-                task_item.push(it);
-            }
 
-            if task.expanded {
-                let child = TodoWidget::get_task_list_item(&task.children, dep + 1);
-                task_item.extend(child);
-            }
+            let it = ListItem::new(Line::from(contents.clone()));
+            task_item.push(it);
+            let child =
+                TodoWidget::get_search_list_item(search_string.to_owned(), &task.children, dep + 1);
+            task_item.extend(child);
+
+            // if !contents.is_empty() {
+            //     let it = ListItem::new(Line::from(contents.clone()));
+            //     task_item.push(it);
+            //     if !task.children.is_empty() {
+            //         let child = TodoWidget::get_task_list_item(&task.children, dep + 1);
+            //         task_item.extend(child);
+            //     }
+            // } else if !task.children.is_empty() {
+            //     let child = TodoWidget::get_search_list_item(
+            //         search_string.to_owned(),
+            //         &task.children,
+            //         dep + 1,
+            //     );
+            //     if !child.is_empty() {
+            //         let it = ListItem::new(Line::from(contents.clone()));
+            //         task_item.push(it);
+            //     }
+            //     task_item.extend(child);
+            // }
         });
 
         task_item
@@ -394,9 +422,15 @@ impl Widget for &mut TodoWidget {
 
                 StatefulWidget::render(listwidget, area, buf, state);
             } else {
-                let tasks = todolist.borrow().tasks.to_owned();
+                let mut tar_list = Vec::new();
+
+                todolist.borrow().tasks.iter().for_each(|task| {
+                    if task.borrow().is_target(self.search_string.clone()) {
+                        tar_list.push(task.to_owned());
+                    }
+                });
                 let task_list =
-                    TodoWidget::get_search_list_item(self.search_string.clone(), &tasks, 1);
+                    TodoWidget::get_search_list_item(self.search_string.clone(), &tar_list, 1);
                 let listwidget =
                     List::new(task_list)
                         .block(block)
