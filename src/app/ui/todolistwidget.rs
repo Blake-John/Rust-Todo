@@ -117,7 +117,7 @@ impl TodoList {
     pub fn refresh_current_task(&mut self) {
         let mut res = None;
         if let Some(cur_task) = &self.current_task {
-            let tasks = TodoList::get_flattened(&self.tasks);
+            let tasks = TodoWidget::get_flattened(&self.tasks);
             for task in tasks.iter() {
                 if cur_task.borrow().id == task.borrow().id {
                     res = Some(task.clone());
@@ -457,56 +457,120 @@ impl Widget for &mut TodoWidget {
     }
 }
 
-impl SelectAction<Task> for TodoList {
+impl SelectAction<Task> for TodoWidget {
     fn get_selected_bf(
-        current_target: &Option<Rc<RefCell<Task>>>,
-        targets: &Vec<Rc<RefCell<Task>>>,
-        state: &mut ListState,
+        &mut self,
+        // current_target: &Option<Rc<RefCell<Task>>>,
+        // targets: &Vec<Rc<RefCell<Task>>>,
+        // state: &mut ListState,
         bf: super::SelectBF,
     ) -> Option<Rc<RefCell<Task>>> {
-        let task_list = TodoList::get_flattened(targets);
-        if !task_list.is_empty() {
-            if current_target.is_none() {
-                state.select(Some(0));
-                Some(task_list[0].clone())
-            } else {
-                let mut target = 0;
-
-                if let Some(ct) = current_target {
-                    let (i, _) = task_list
-                        .iter()
-                        .enumerate()
-                        .find(|(_, task)| task.borrow().id == ct.borrow().id)
-                        .unwrap();
-                    target = i;
-                }
-                match bf {
-                    SelectBF::Back => {
-                        state.select_previous();
-                        target = target.saturating_sub(1);
-                    }
-                    SelectBF::Forward => {
-                        state.select_next();
-                        if target < task_list.len() - 1 {
-                            target += 1;
+        if let Some(cur_list) = &self.current_todolist {
+            if self.search_string.is_empty() {
+                let task_list = TodoWidget::get_flattened(&cur_list.borrow().tasks);
+                if !task_list.is_empty() {
+                    let mut cur_list_mut = cur_list.borrow_mut();
+                    if let Some(cur_task) = &cur_list_mut.current_task {
+                        let (mut target, _) = task_list
+                            .iter()
+                            .enumerate()
+                            .find(|(_, task)| task.borrow().id == cur_task.borrow().id)
+                            .unwrap();
+                        match bf {
+                            SelectBF::Forward => {
+                                target = (target + 1).min(task_list.len() - 1);
+                                cur_list_mut.state.select(Some(target));
+                                return Some(task_list[target].to_owned());
+                            }
+                            SelectBF::Back => {
+                                target = target.saturating_sub(1);
+                                cur_list_mut.state.select(Some(target));
+                                return Some(task_list[target].to_owned());
+                            }
+                        }
+                    } else {
+                        match bf {
+                            SelectBF::Forward => {
+                                cur_list_mut.state.select(Some(0));
+                                return Some(task_list[0].to_owned());
+                            }
+                            SelectBF::Back => {
+                                cur_list_mut.state.select(Some(task_list.len() - 1));
+                                return Some(task_list[task_list.len() - 1].to_owned());
+                            }
                         }
                     }
+                } else {
+                    return None;
                 }
-
-                Some(task_list[target].clone())
+            } else {
+                let mut task_list = Vec::new();
+                cur_list.borrow().tasks.iter().for_each(|task| {
+                    if task.borrow().is_target(self.search_string.clone()) {
+                        task_list.push(task.to_owned());
+                    }
+                });
+                let tar_list = TodoWidget::get_flattened(&task_list);
+                if !tar_list.is_empty() {
+                    let mut cur_list_mut = cur_list.borrow_mut();
+                    if let Some(cur_task) = &cur_list_mut.current_task {
+                        let find_result = tar_list
+                            .iter()
+                            .enumerate()
+                            .find(|(_, task)| task.borrow().id == cur_task.borrow().id);
+                        if let Some((mut target, _)) = find_result {
+                            match bf {
+                                SelectBF::Forward => {
+                                    target = (target + 1).min(tar_list.len() - 1);
+                                    cur_list_mut.state.select(Some(target));
+                                    return Some(tar_list[target].to_owned());
+                                }
+                                SelectBF::Back => {
+                                    target = target.saturating_sub(1);
+                                    cur_list_mut.state.select(Some(target));
+                                    return Some(tar_list[target].to_owned());
+                                }
+                            }
+                        } else {
+                            match bf {
+                                SelectBF::Forward => {
+                                    cur_list_mut.state.select(Some(0));
+                                    return Some(tar_list[0].to_owned());
+                                }
+                                SelectBF::Back => {
+                                    cur_list_mut.state.select(Some(tar_list.len() - 1));
+                                    return Some(tar_list[tar_list.len() - 1].to_owned());
+                                }
+                            }
+                        }
+                    } else {
+                        match bf {
+                            SelectBF::Forward => {
+                                cur_list_mut.state.select(Some(0));
+                                return Some(tar_list[0].to_owned());
+                            }
+                            SelectBF::Back => {
+                                cur_list_mut.state.select(Some(tar_list.len() - 1));
+                                return Some(tar_list[tar_list.len() - 1].to_owned());
+                            }
+                        }
+                    }
+                } else {
+                    return None;
+                }
             }
-        } else {
-            None
         }
+
+        None
     }
 
     fn get_flattened(target: &Vec<Rc<RefCell<Task>>>) -> Vec<Rc<RefCell<Task>>> {
         let mut result = Vec::<Rc<RefCell<Task>>>::new();
-        target.iter().for_each(|ws| {
-            result.push(ws.clone());
-            let ws_ = ws.borrow();
-            if !ws_.children.is_empty() {
-                let child = TodoList::get_flattened(&ws_.children);
+        target.iter().for_each(|task| {
+            result.push(task.clone());
+            let task_bor = task.borrow();
+            if !task_bor.children.is_empty() {
+                let child = TodoWidget::get_flattened(&task_bor.children);
                 result.extend(child);
             }
         });

@@ -140,7 +140,7 @@ impl WorkspaceWidget {
     /// `workspaces` in memory, although they have the same value.
     pub fn refresh_current(&mut self) {
         if let Some(cur_ws) = self.current_workspace.clone() {
-            let new_ws_list = Workspace::get_flattened(&self.workspaces);
+            let new_ws_list = WorkspaceWidget::get_flattened(&self.workspaces);
             for ws in new_ws_list.iter() {
                 let cur_ws_id = cur_ws.borrow_mut().id;
                 if cur_ws_id == ws.borrow().id {
@@ -258,22 +258,23 @@ impl Widget for &mut WorkspaceWidget {
     }
 }
 
-impl SelectAction<Self> for Workspace {
+impl SelectAction<Workspace> for WorkspaceWidget {
     fn get_selected_bf(
-        current_target: &Option<Rc<RefCell<Workspace>>>,
-        targets: &Vec<Rc<RefCell<Workspace>>>,
-        state: &mut ListState,
+        &mut self,
+        // current_target: &Option<Rc<RefCell<Workspace>>>,
+        // targets: &Vec<Rc<RefCell<Workspace>>>,
+        // state: &mut ListState,
         bf: super::SelectBF,
     ) -> Option<Rc<RefCell<Workspace>>> {
-        let ws_list = Workspace::get_flattened(targets);
+        let ws_list = WorkspaceWidget::get_flattened(&self.workspaces);
         if !ws_list.is_empty() {
-            if current_target.is_none() {
-                state.select(Some(0));
+            if self.current_workspace.is_none() {
+                self.ws_state.select(Some(0));
                 Some(ws_list[0].clone())
             } else {
                 let mut target = 0;
 
-                if let Some(cw) = current_target {
+                if let Some(cw) = &self.current_workspace {
                     let (i, _) = ws_list
                         .iter()
                         .enumerate()
@@ -283,21 +284,19 @@ impl SelectAction<Self> for Workspace {
                 }
                 match bf {
                     SelectBF::Back => {
-                        state.select_previous();
+                        self.ws_state.select_previous();
                         target = target.saturating_sub(1);
                     }
                     SelectBF::Forward => {
-                        state.select_next();
-                        if target < ws_list.len() - 1 {
-                            target += 1;
-                        }
+                        self.ws_state.select_next();
+                        target = (target + 1).min(ws_list.len() - 1);
                     }
                 }
 
                 Some(ws_list[target].clone())
             }
         } else {
-            state.select(None);
+            self.ws_state.select(None);
             None
         }
     }
@@ -308,7 +307,7 @@ impl SelectAction<Self> for Workspace {
             result.push(ws.clone());
             let ws_ = ws.borrow();
             if !ws_.children.is_empty() {
-                let child = Workspace::get_flattened(&ws_.children);
+                let child = WorkspaceWidget::get_flattened(&ws_.children);
                 result.extend(child);
             }
         });

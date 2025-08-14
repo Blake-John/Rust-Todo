@@ -3,11 +3,10 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::vec;
 
-use keymap::KeymapWidget;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::text::{Line, Text};
-use ratatui::widgets::{Block, Clear, List, ListState, Padding, Paragraph, Widget};
+use ratatui::widgets::{Block, Clear, List, ListState, Padding, Paragraph};
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Layout},
@@ -132,9 +131,10 @@ pub trait SelectAction<T> {
     ///
     /// - `Option<Rc<RefCell<T>>>` - the result of the next selection
     fn get_selected_bf(
-        current_target: &Option<Rc<RefCell<T>>>,
-        targets: &Vec<Rc<RefCell<T>>>,
-        state: &mut ListState,
+        &mut self,
+        // current_target: &Option<Rc<RefCell<T>>>,
+        // targets: &Vec<Rc<RefCell<T>>>,
+        // state: &mut ListState,
         bf: SelectBF,
     ) -> Option<Rc<RefCell<T>>>;
     /// Get the flattened vector of T from the vector of [`T`] which might have nested [`T`] (children)
@@ -620,36 +620,44 @@ impl Ui {
                         } else {
                             match apps.current_focus {
                                 CurrentFocus::Workspace => {
-                                    self.workspace.current_workspace = Workspace::get_selected_bf(
-                                        &self.workspace.current_workspace,
-                                        &self.workspace.workspaces,
-                                        &mut self.workspace.ws_state,
-                                        SelectBF::Back,
-                                    );
+                                    // self.workspace.current_workspace = Workspace::get_selected_bf(
+                                    //     &self.workspace.current_workspace,
+                                    //     &self.workspace.workspaces,
+                                    //     &mut self.workspace.ws_state,
+                                    //     SelectBF::Back,
+                                    // );
+                                    self.workspace.current_workspace =
+                                        self.workspace.get_selected_bf(SelectBF::Back);
                                     self.todolist
                                         .change_current_list(&self.workspace.current_workspace);
                                 }
                                 CurrentFocus::TodoList => {
-                                    if let Some(clist) = &self.todolist.current_todolist {
-                                        let mut clist_mut = clist.borrow_mut();
-                                        let tasks = clist_mut.tasks.clone();
-                                        let ctask = clist_mut.current_task.clone();
-                                        // let mut state = &mut clist.borrow_mut().state;
-                                        clist_mut.current_task = TodoList::get_selected_bf(
-                                            &ctask,
-                                            &tasks,
-                                            &mut clist_mut.state,
-                                            SelectBF::Back,
-                                        );
+                                    let cur_task = self.todolist.get_selected_bf(SelectBF::Back);
+                                    if let Some(cur_list) = &self.todolist.current_todolist {
+                                        cur_list.borrow_mut().current_task = cur_task;
                                     }
+                                    // if let Some(clist) = &self.todolist.current_todolist {
+                                    //     let mut clist_mut = clist.borrow_mut();
+                                    //     let tasks = clist_mut.tasks.clone();
+                                    //     let ctask = clist_mut.current_task.clone();
+                                    //     // let mut state = &mut clist.borrow_mut().state;
+                                    //     // clist_mut.current_task = TodoList::get_selected_bf(
+                                    //     //     &ctask,
+                                    //     //     &tasks,
+                                    //     //     &mut clist_mut.state,
+                                    //     //     SelectBF::Back,
+                                    //     // );
+                                    // }
                                 }
                                 CurrentFocus::ArchivedWorkspace => {
-                                    self.archived_ws.current_workspace = Workspace::get_selected_bf(
-                                        &self.archived_ws.current_workspace,
-                                        &self.archived_ws.workspaces,
-                                        &mut self.archived_ws.ws_state,
-                                        SelectBF::Back,
-                                    );
+                                    // self.archived_ws.current_workspace = Workspace::get_selected_bf(
+                                    //     &self.archived_ws.current_workspace,
+                                    //     &self.archived_ws.workspaces,
+                                    //     &mut self.archived_ws.ws_state,
+                                    //     SelectBF::Back,
+                                    // );
+                                    self.archived_ws.current_workspace =
+                                        self.archived_ws.get_selected_bf(SelectBF::Back);
                                     self.todolist
                                         .change_current_list(&self.archived_ws.current_workspace);
                                 }
@@ -670,36 +678,44 @@ impl Ui {
                         } else {
                             match apps.current_focus {
                                 CurrentFocus::Workspace => {
-                                    self.workspace.current_workspace = Workspace::get_selected_bf(
-                                        &self.workspace.current_workspace,
-                                        &self.workspace.workspaces,
-                                        &mut self.workspace.ws_state,
-                                        SelectBF::Forward,
-                                    );
+                                    // self.workspace.current_workspace = Workspace::get_selected_bf(
+                                    //     &self.workspace.current_workspace,
+                                    //     &self.workspace.workspaces,
+                                    //     &mut self.workspace.ws_state,
+                                    //     SelectBF::Forward,
+                                    // );
+                                    self.workspace.current_workspace =
+                                        self.workspace.get_selected_bf(SelectBF::Forward);
                                     self.todolist
                                         .change_current_list(&self.workspace.current_workspace);
                                 }
                                 CurrentFocus::TodoList => {
-                                    if let Some(clist) = &self.todolist.current_todolist {
-                                        let mut clist_mut = clist.borrow_mut();
-                                        let tasks = clist_mut.tasks.clone();
-                                        let ctask = clist_mut.current_task.clone();
-                                        // let state = &mut clist_mut.state;
-                                        clist_mut.current_task = TodoList::get_selected_bf(
-                                            &ctask,
-                                            &tasks,
-                                            &mut clist_mut.state,
-                                            SelectBF::Forward,
-                                        );
+                                    let cur_task = self.todolist.get_selected_bf(SelectBF::Forward);
+                                    if let Some(cur_list) = &self.todolist.current_todolist {
+                                        cur_list.borrow_mut().current_task = cur_task;
                                     }
+                                    // if let Some(clist) = &self.todolist.current_todolist {
+                                    //     let mut clist_mut = clist.borrow_mut();
+                                    //     let tasks = clist_mut.tasks.clone();
+                                    //     let ctask = clist_mut.current_task.clone();
+                                    //     // let state = &mut clist_mut.state;
+                                    //     clist_mut.current_task = TodoList::get_selected_bf(
+                                    //         &ctask,
+                                    //         &tasks,
+                                    //         &mut clist_mut.state,
+                                    //         SelectBF::Forward,
+                                    //     );
+                                    // }
                                 }
                                 CurrentFocus::ArchivedWorkspace => {
-                                    self.archived_ws.current_workspace = Workspace::get_selected_bf(
-                                        &self.archived_ws.current_workspace,
-                                        &self.archived_ws.workspaces,
-                                        &mut self.archived_ws.ws_state,
-                                        SelectBF::Forward,
-                                    );
+                                    // self.archived_ws.current_workspace = Workspace::get_selected_bf(
+                                    //     &self.archived_ws.current_workspace,
+                                    //     &self.archived_ws.workspaces,
+                                    //     &mut self.archived_ws.ws_state,
+                                    //     SelectBF::Forward,
+                                    // );
+                                    self.archived_ws.current_workspace =
+                                        self.archived_ws.get_selected_bf(SelectBF::Forward);
                                     self.todolist
                                         .change_current_list(&self.archived_ws.current_workspace);
                                 }
@@ -852,7 +868,6 @@ impl Ui {
                         let mut apps = appstate.lock().unwrap();
                         apps.current_mode = CurrentMode::Normal;
                     }
-                    // TODO: Implement the filter functionality
                     WidgetAction::Filter => {
                         let cur_list_opt = self.todolist.current_todolist.clone();
                         if cur_list_opt.is_some() {
@@ -862,7 +877,6 @@ impl Ui {
                             if let Some(cur_list) = &self.todolist.current_todolist {
                                 let mut cur_list_mut = cur_list.borrow_mut();
                                 cur_list_mut.state.select_first();
-                                // FIXME: selected in list and current_task does not match
                                 for task in cur_list_mut.tasks.iter() {
                                     if task.borrow().is_target(self.todolist.search_string.clone())
                                     {
@@ -910,6 +924,7 @@ impl Ui {
                             self.archived_ws.current_workspace = None;
                             self.archived_ws.ws_state.select(None);
                         }
+                        let _ = terminal.draw(|f| self.update(f));
                     }
                     WidgetAction::Help => {
                         self.helpwidget.keymap.mode = CurrentMode::Help;

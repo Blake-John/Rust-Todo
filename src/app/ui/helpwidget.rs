@@ -1,7 +1,7 @@
 use ratatui::{
     layout::{Constraint, Layout},
     style::Stylize,
-    text::Line,
+    text::{Line, Span},
     widgets::{Block, Clear, Paragraph, Scrollbar, ScrollbarState, StatefulWidget, Widget},
 };
 
@@ -43,6 +43,7 @@ impl Widget for &mut HelpWidget {
 
         let block = Block::bordered()
             .title("Help Page")
+            // .border_style(Style::new().light_cyan())
             .title_alignment(ratatui::layout::Alignment::Center);
 
         let keymap_widget = &self.keymap;
@@ -58,35 +59,31 @@ impl Widget for &mut HelpWidget {
         ];
 
         keymap_widget.general_hint.iter().for_each(|hint| {
-            general_keys.push(Line::from(format!(
-                "{:12} {}",
-                hint.key.to_owned(),
-                hint.desc.to_owned()
-            )));
+            general_keys.push(Line::from(vec![
+                Span::from(format!("{:12}", hint.key.to_owned())).light_cyan(),
+                Span::from(format!("{:12}", hint.desc.to_owned())),
+            ]));
         });
         general_keys.push(Line::from(""));
         keymap_widget.workspace_hint.iter().for_each(|hint| {
-            workspace_keys.push(Line::from(format!(
-                "{:12} {}",
-                hint.key.to_owned(),
-                hint.desc.to_owned()
-            )));
+            workspace_keys.push(Line::from(vec![
+                Span::from(format!("{:12}", hint.key.to_owned())).light_green(),
+                Span::from(format!("{:12}", hint.desc.to_owned())),
+            ]));
         });
         workspace_keys.push(Line::from(""));
         keymap_widget.tasklist_hint.iter().for_each(|hint| {
-            todolist_keys.push(Line::from(format!(
-                "{:12} {}",
-                hint.key.to_owned(),
-                hint.desc.to_owned()
-            )));
+            todolist_keys.push(Line::from(vec![
+                Span::from(format!("{:12}", hint.key.to_owned())).light_blue(),
+                Span::from(format!("{:12}", hint.desc.to_owned())),
+            ]));
         });
         todolist_keys.push(Line::from(""));
         keymap_widget.archived_ws_hint.iter().for_each(|hint| {
-            archived_ws_keys.push(Line::from(format!(
-                "{:12} {}",
-                hint.key.to_owned(),
-                hint.desc.to_owned()
-            )));
+            archived_ws_keys.push(Line::from(vec![
+                Span::from(format!("{:12}", hint.key.to_owned())).light_yellow(),
+                Span::from(format!("{:12}", hint.desc.to_owned())),
+            ]));
         });
         archived_ws_keys.push(Line::from(""));
 

@@ -76,7 +76,6 @@ impl Default for KeymapWidget {
                 //TODO: Implement sort functionality
                 Keymap::new("s", "sort"),
                 Keymap::new("f /", "filter"),
-                // TODO: Implement the help popup window
                 Keymap::new("?", "help"),
             ],
             archived_ws_hint: vec![
