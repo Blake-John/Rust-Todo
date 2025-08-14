@@ -192,7 +192,10 @@ async fn handle_keyevt(
                 match apps.current_mode {
                     CurrentMode::Normal | CurrentMode::Search => match key_evt.code {
                         event::KeyCode::Esc => {
-                            let _ = tx.send(Message::SearchMsg(SearchEvent::Exit)).await;
+                            if let CurrentMode::Normal = apps.current_mode {
+                            } else if let CurrentMode::Search = apps.current_mode {
+                                let _ = tx.send(Message::SearchMsg(SearchEvent::Exit)).await;
+                            }
                         }
                         event::KeyCode::Char('q') => {
                             let _ = tx.send(Message::Exit).await;
@@ -204,15 +207,21 @@ async fn handle_keyevt(
                         event::KeyCode::Char('i') => {
                             let _ = tx.send(Message::AddChild).await;
                         }
-                        event::KeyCode::Char('j') => {
+                        event::KeyCode::Char('j') | event::KeyCode::Down => {
                             let _ = tx.send(Message::MoveDown).await;
                         }
-                        event::KeyCode::Char('k') => {
+                        event::KeyCode::Char('k') | event::KeyCode::Up => {
                             let _ = tx.send(Message::MoveUp).await;
                         }
-                        event::KeyCode::Char('l') => {
+                        event::KeyCode::Char('l') | event::KeyCode::Right => {
                             if let CurrentFocus::Workspace = apps.current_focus {
                                 let _ = tx.send(Message::SelectWorkspace).await;
+                            }
+                        }
+                        event::KeyCode::Char('h') | event::KeyCode::Left => {
+                            if let CurrentFocus::TodoList = apps.current_focus {
+                                let _ =
+                                    tx.send(Message::ChangeFocus(CurrentFocus::Workspace)).await;
                             }
                         }
                         event::KeyCode::Char('c') => {
@@ -233,12 +242,6 @@ async fn handle_keyevt(
                         event::KeyCode::Char('A') => {
                             if let CurrentFocus::Workspace = apps.current_focus {
                                 let _ = tx.send(Message::Archive).await;
-                            }
-                        }
-                        event::KeyCode::Char('h') => {
-                            if let CurrentFocus::TodoList = apps.current_focus {
-                                let _ =
-                                    tx.send(Message::ChangeFocus(CurrentFocus::Workspace)).await;
                             }
                         }
                         event::KeyCode::Char('d') => {
@@ -289,6 +292,9 @@ async fn handle_keyevt(
                             }
                             _ => (),
                         },
+                        event::KeyCode::Char('?') => {
+                            let _ = tx.send(Message::Help).await;
+                        }
                         _ => {}
                     },
                     CurrentMode::Insert => match key_evt.code {
@@ -311,14 +317,21 @@ async fn handle_keyevt(
                             let _ = input_tx.send(InputEvent::Right).await;
                         }
                         _ => {}
-                    }, // CurrentMode::Search => match key_evt.code {
-                       //     event::KeyCode::Char('n') => {
-                       //         let _ = tx.send(Message::SearchMsg(SearchEvent::Next)).await;
-                       //     }
-                       //     event::KeyCode::Char('N') => {
-                       //         let _ = tx.send(Message::SearchMsg(SearchEvent::Previous)).await;
-                       //     }
-                       // },
+                    },
+                    CurrentMode::Help => match key_evt.code {
+                        event::KeyCode::Char('j') | event::KeyCode::Down => {
+                            let _ = tx.send(Message::MoveDown).await;
+                        }
+                        event::KeyCode::Char('k') | event::KeyCode::Up => {
+                            let _ = tx.send(Message::MoveUp).await;
+                        }
+                        event::KeyCode::Char('l') | event::KeyCode::Right => {}
+                        event::KeyCode::Char('h') | event::KeyCode::Left => {}
+                        event::KeyCode::Char('q') | event::KeyCode::Esc => {
+                            let _ = tx.send(Message::ExitHelp).await;
+                        }
+                        _ => {}
+                    },
                 }
             }
         } else if let event::Event::Resize(_, _) = evt {
@@ -369,7 +382,7 @@ async fn handle_msg(
                         apps.current_mode = CurrentMode::Insert;
                         let _ = ui_tx.send(UiMessage::WAction(WidgetAction::AddTask)).await;
                     }
-                    CurrentFocus::ArchivedWorkspace => {}
+                    _ => {}
                 }
             }
             Message::AddChild => {
@@ -387,7 +400,7 @@ async fn handle_msg(
                             .send(UiMessage::WAction(WidgetAction::AddTaskChild))
                             .await;
                     }
-                    CurrentFocus::ArchivedWorkspace => {}
+                    _ => {}
                 }
             }
             Message::ChangeMode(mode) => {
@@ -523,16 +536,30 @@ async fn handle_msg(
             Message::Filter => {
                 let mut app_state = appstate.lock().unwrap();
                 app_state.current_mode = CurrentMode::Insert;
+                drop(app_state);
                 let _ = ui_tx.send(UiMessage::WAction(WidgetAction::Filter)).await;
             }
             Message::SearchMsg(search_msg) => {
                 if let SearchEvent::Exit = search_msg {
                     let mut app_state = appstate.lock().unwrap();
                     app_state.current_mode = CurrentMode::Normal;
+                    drop(app_state);
                     let _ = ui_tx
                         .send(UiMessage::WAction(WidgetAction::ExitFilter))
                         .await;
                 }
+            }
+            Message::Help => {
+                let mut app_state = appstate.lock().unwrap();
+                app_state.current_mode = CurrentMode::Help;
+                drop(app_state);
+                let _ = ui_tx.send(UiMessage::WAction(WidgetAction::Help)).await;
+            }
+            Message::ExitHelp => {
+                let mut app_state = appstate.lock().unwrap();
+                app_state.current_mode = CurrentMode::Normal;
+                drop(app_state);
+                let _ = ui_tx.send(UiMessage::WAction(WidgetAction::ExitHelp)).await;
             }
         }
     }

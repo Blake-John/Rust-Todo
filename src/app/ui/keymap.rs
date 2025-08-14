@@ -6,7 +6,7 @@ use ratatui::{
     widgets::Widget,
 };
 
-use crate::app::appstate::CurrentFocus;
+use crate::app::appstate::{CurrentFocus, CurrentMode};
 
 #[derive(Debug)]
 pub struct Keymap {
@@ -26,6 +26,7 @@ impl Keymap {
 #[derive(Debug)]
 pub struct KeymapWidget {
     pub focus: CurrentFocus,
+    pub mode: CurrentMode,
     pub general_hint: Vec<Keymap>,
     pub workspace_hint: Vec<Keymap>,
     pub tasklist_hint: Vec<Keymap>,
@@ -45,6 +46,7 @@ impl Default for KeymapWidget {
     fn default() -> Self {
         KeymapWidget {
             focus: CurrentFocus::Workspace,
+            mode: CurrentMode::Normal,
             general_hint: vec![
                 Keymap::new("h/left", "move left"),
                 Keymap::new("l/right", "move right"),
@@ -90,44 +92,51 @@ impl Default for KeymapWidget {
 impl Widget for &mut KeymapWidget {
     fn render(self, area: Rect, buf: &mut Buffer) {
         // Render the key map widget
-        let keymap_hint: &Vec<Keymap> = match self.focus {
-            CurrentFocus::TodoList => &self.tasklist_hint,
-            CurrentFocus::Workspace => &self.workspace_hint,
-            CurrentFocus::ArchivedWorkspace => &self.archived_ws_hint,
-        };
         let mut hint_span: Vec<Span> = Vec::new();
-        match self.focus {
-            CurrentFocus::Workspace => {
-                keymap_hint.iter().for_each(|hint| {
-                    hint_span.push(Span::styled(" ".to_string(), Style::new().white()));
-                    hint_span.push(Span::styled("<".to_string(), Style::new().white()));
-                    hint_span.push(Span::styled(hint.key.clone(), Style::new().light_blue()));
-                    hint_span.push(Span::styled(">".to_string(), Style::new().white()));
-                    hint_span.push(Span::styled(hint.desc.clone(), Style::new().white()));
-                    hint_span.push(Span::styled(" ".to_string(), Style::new().white()));
-                });
-            }
-            CurrentFocus::TodoList => {
-                keymap_hint.iter().for_each(|hint| {
-                    hint_span.push(Span::styled(" ".to_string(), Style::new().white()));
-                    hint_span.push(Span::styled("<".to_string(), Style::new().white()));
-                    hint_span.push(Span::styled(hint.key.clone(), Style::new().light_blue()));
-                    hint_span.push(Span::styled(">".to_string(), Style::new().white()));
-                    hint_span.push(Span::styled(hint.desc.clone(), Style::new().white()));
-                    hint_span.push(Span::styled(" ".to_string(), Style::new().white()));
-                });
-            }
-            CurrentFocus::ArchivedWorkspace => {
-                keymap_hint.iter().for_each(|hint| {
-                    hint_span.push(Span::styled(" ".to_string(), Style::new().white()));
-                    hint_span.push(Span::styled("<".to_string(), Style::new().white()));
-                    hint_span.push(Span::styled(hint.key.clone(), Style::new().light_blue()));
-                    hint_span.push(Span::styled(">".to_string(), Style::new().white()));
-                    hint_span.push(Span::styled(hint.desc.clone(), Style::new().white()));
-                    hint_span.push(Span::styled(" ".to_string(), Style::new().white()));
-                });
-            }
+        if let CurrentMode::Help = &self.mode {
+            self.general_hint.iter().for_each(|hint| {
+                hint_span.push(Span::styled(" ".to_string(), Style::new().white()));
+                hint_span.push(Span::styled("<".to_string(), Style::new().white()));
+                hint_span.push(Span::styled(hint.key.clone(), Style::new().light_cyan()));
+                hint_span.push(Span::styled(">".to_string(), Style::new().white()));
+                hint_span.push(Span::styled(hint.desc.clone(), Style::new().white()));
+                hint_span.push(Span::styled(" ".to_string(), Style::new().white()));
+            });
+        } else {
+            match self.focus {
+                CurrentFocus::TodoList => {
+                    self.tasklist_hint.iter().for_each(|hint| {
+                        hint_span.push(Span::styled(" ".to_string(), Style::new().white()));
+                        hint_span.push(Span::styled("<".to_string(), Style::new().white()));
+                        hint_span.push(Span::styled(hint.key.clone(), Style::new().light_blue()));
+                        hint_span.push(Span::styled(">".to_string(), Style::new().white()));
+                        hint_span.push(Span::styled(hint.desc.clone(), Style::new().white()));
+                        hint_span.push(Span::styled(" ".to_string(), Style::new().white()));
+                    });
+                }
+                CurrentFocus::Workspace => {
+                    self.workspace_hint.iter().for_each(|hint| {
+                        hint_span.push(Span::styled(" ".to_string(), Style::new().white()));
+                        hint_span.push(Span::styled("<".to_string(), Style::new().white()));
+                        hint_span.push(Span::styled(hint.key.clone(), Style::new().light_green()));
+                        hint_span.push(Span::styled(">".to_string(), Style::new().white()));
+                        hint_span.push(Span::styled(hint.desc.clone(), Style::new().white()));
+                        hint_span.push(Span::styled(" ".to_string(), Style::new().white()));
+                    });
+                }
+                CurrentFocus::ArchivedWorkspace => {
+                    self.archived_ws_hint.iter().for_each(|hint| {
+                        hint_span.push(Span::styled(" ".to_string(), Style::new().white()));
+                        hint_span.push(Span::styled("<".to_string(), Style::new().white()));
+                        hint_span.push(Span::styled(hint.key.clone(), Style::new().light_yellow()));
+                        hint_span.push(Span::styled(">".to_string(), Style::new().white()));
+                        hint_span.push(Span::styled(hint.desc.clone(), Style::new().white()));
+                        hint_span.push(Span::styled(" ".to_string(), Style::new().white()));
+                    });
+                }
+            };
         }
+
         let hint_line = Line::from(hint_span);
         Widget::render(hint_line, area, buf);
     }

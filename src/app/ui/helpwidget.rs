@@ -1,8 +1,8 @@
-use std::{cell::RefCell, rc::Rc};
-
 use ratatui::{
     layout::{Constraint, Layout},
-    widgets::{Block, ScrollbarState, Widget},
+    style::Stylize,
+    text::Line,
+    widgets::{Block, Clear, Paragraph, Scrollbar, ScrollbarState, StatefulWidget, Widget},
 };
 
 use crate::app::ui::keymap::KeymapWidget;
@@ -10,12 +10,13 @@ use crate::app::ui::keymap::KeymapWidget;
 #[derive(Debug, Default)]
 pub struct HelpWidget {
     pub scroll: usize,
+    pub scroll_max: usize,
     pub state: ScrollbarState,
-    pub keymap: Rc<RefCell<KeymapWidget>>,
+    pub keymap: KeymapWidget,
 }
 
 impl HelpWidget {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             ..Default::default()
         }
@@ -43,5 +44,66 @@ impl Widget for &mut HelpWidget {
         let block = Block::bordered()
             .title("Help Page")
             .title_alignment(ratatui::layout::Alignment::Center);
+
+        let keymap_widget = &self.keymap;
+        let mut general_keys: Vec<Line> = vec![Line::from("General Keymaps").bold().light_cyan()];
+        let mut workspace_keys: Vec<Line> =
+            vec![Line::from("Workspace Keymaps").bold().light_green()];
+        let mut todolist_keys: Vec<Line> =
+            vec![Line::from("Todo List Keymaps").bold().light_blue()];
+        let mut archived_ws_keys: Vec<Line> = vec![
+            Line::from("Archived Workspace Keymaps")
+                .bold()
+                .light_yellow(),
+        ];
+
+        keymap_widget.general_hint.iter().for_each(|hint| {
+            general_keys.push(Line::from(format!(
+                "{:12} {}",
+                hint.key.to_owned(),
+                hint.desc.to_owned()
+            )));
+        });
+        general_keys.push(Line::from(""));
+        keymap_widget.workspace_hint.iter().for_each(|hint| {
+            workspace_keys.push(Line::from(format!(
+                "{:12} {}",
+                hint.key.to_owned(),
+                hint.desc.to_owned()
+            )));
+        });
+        workspace_keys.push(Line::from(""));
+        keymap_widget.tasklist_hint.iter().for_each(|hint| {
+            todolist_keys.push(Line::from(format!(
+                "{:12} {}",
+                hint.key.to_owned(),
+                hint.desc.to_owned()
+            )));
+        });
+        todolist_keys.push(Line::from(""));
+        keymap_widget.archived_ws_hint.iter().for_each(|hint| {
+            archived_ws_keys.push(Line::from(format!(
+                "{:12} {}",
+                hint.key.to_owned(),
+                hint.desc.to_owned()
+            )));
+        });
+        archived_ws_keys.push(Line::from(""));
+
+        let mut para_lines = Vec::new();
+        para_lines.extend(general_keys);
+        para_lines.extend(workspace_keys);
+        para_lines.extend(todolist_keys);
+        para_lines.extend(archived_ws_keys);
+        self.state = self.state.content_length(para_lines.len());
+        self.scroll_max = para_lines.len() - 5;
+        let para = Paragraph::new(para_lines)
+            .block(block)
+            .scroll((self.scroll as u16, 0));
+        let scrollbar = Scrollbar::new(ratatui::widgets::ScrollbarOrientation::VerticalRight);
+
+        Widget::render(Clear, h_layout[1], buf);
+        Widget::render(para, h_layout[1], buf);
+        StatefulWidget::render(scrollbar, h_layout[1], buf, &mut self.state);
     }
 }

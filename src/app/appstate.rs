@@ -73,6 +73,8 @@ pub enum Message {
     Rename,
     Filter,
     SearchMsg(SearchEvent),
+    Help,
+    ExitHelp,
 }
 
 /// State of which is focused
@@ -89,4 +91,5 @@ pub enum CurrentMode {
     Normal,
     Insert,
     Search,
+    Help,
 }

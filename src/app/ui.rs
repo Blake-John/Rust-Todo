@@ -7,7 +7,7 @@ use keymap::KeymapWidget;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::text::{Line, Text};
-use ratatui::widgets::{Block, Clear, List, ListState, Padding, Paragraph};
+use ratatui::widgets::{Block, Clear, List, ListState, Padding, Paragraph, Widget};
 use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Layout},
@@ -16,6 +16,7 @@ use tokio::sync::mpsc;
 use tui_textarea::TextArea;
 
 use crate::app::appstate::{AppState, CurrentFocus, CurrentMode};
+use crate::app::ui::helpwidget::HelpWidget;
 use crate::app::ui::todolistwidget::{Task, TaskStatus, TodoList, TodoWidget};
 use crate::app::ui::workspacewidget::Workspace;
 
@@ -67,6 +68,9 @@ pub enum WidgetAction {
     Rename(CurrentFocus),
     Filter,
     ExitFilter,
+
+    Help,
+    ExitHelp,
 }
 
 /// The select direction, whether to go back or forward
@@ -107,7 +111,8 @@ pub struct Ui {
     pub workspace: WorkspaceWidget,
     pub todolist: TodoWidget,
     pub archived_ws: WorkspaceWidget,
-    pub keymap: KeymapWidget,
+    // pub keymap: KeymapWidget,
+    pub helpwidget: HelpWidget,
     pub ui_rx: mpsc::Receiver<UiMessage>,
     pub input_rx: Arc<Mutex<mpsc::Receiver<InputEvent>>>,
 }
@@ -150,7 +155,7 @@ impl Ui {
             workspace: WorkspaceWidget::new(workspacewidget::WorkspaceType::Normal),
             todolist: TodoWidget::new(),
             archived_ws: WorkspaceWidget::new(workspacewidget::WorkspaceType::Archived),
-            keymap: KeymapWidget::default(),
+            helpwidget: HelpWidget::new(),
             ui_rx,
             input_rx: Arc::new(Mutex::new(input_rx)),
         }
@@ -166,7 +171,10 @@ impl Ui {
         f.render_widget(&mut self.workspace, ws_layout[0]);
         f.render_widget(&mut self.archived_ws, ws_layout[1]);
         f.render_widget(&mut self.todolist, layouts[1]);
-        f.render_widget(&mut self.keymap, layout[1]);
+        f.render_widget(&mut self.helpwidget.keymap, layout[1]);
+        if let CurrentMode::Help = self.helpwidget.keymap.mode {
+            f.render_widget(&mut self.helpwidget, f.area());
+        }
     }
 
     pub async fn add_item(
@@ -222,7 +230,7 @@ impl Ui {
         self.archived_ws.refresh_current();
         self.todolist
             .change_current_list(&self.workspace.current_workspace);
-        self.keymap.focus = if self.archived_ws.focused {
+        self.helpwidget.keymap.focus = if self.archived_ws.focused {
             CurrentFocus::ArchivedWorkspace
         } else if self.todolist.focused {
             CurrentFocus::TodoList
@@ -503,21 +511,21 @@ impl Ui {
                         self.workspace.focused = true;
                         self.todolist.focused = false;
                         self.archived_ws.focused = false;
-                        self.keymap.focus = CurrentFocus::Workspace;
+                        self.helpwidget.keymap.focus = CurrentFocus::Workspace;
                         let _result = terminal.draw(|f| self.update(f));
                     }
                     WidgetAction::FocusTodolist => {
                         self.workspace.focused = false;
                         self.todolist.focused = true;
                         self.archived_ws.focused = false;
-                        self.keymap.focus = CurrentFocus::TodoList;
+                        self.helpwidget.keymap.focus = CurrentFocus::TodoList;
                         let _result = terminal.draw(|f| self.update(f));
                     }
                     WidgetAction::FocusArchivedWorkspace => {
                         self.archived_ws.focused = true;
                         self.todolist.focused = false;
                         self.workspace.focused = false;
-                        self.keymap.focus = CurrentFocus::ArchivedWorkspace;
+                        self.helpwidget.keymap.focus = CurrentFocus::ArchivedWorkspace;
                         let _result = terminal.draw(|f| self.update(f));
                     }
                     WidgetAction::AddWorkspace => {
@@ -587,7 +595,7 @@ impl Ui {
                         apps.current_focus = CurrentFocus::TodoList;
                         self.workspace.focused = false;
                         self.todolist.focused = true;
-                        self.keymap.focus = CurrentFocus::TodoList;
+                        self.helpwidget.keymap.focus = CurrentFocus::TodoList;
                         self.todolist
                             .change_current_list(&self.workspace.current_workspace);
                         let _result = terminal.draw(|f| self.update(f));
@@ -598,96 +606,106 @@ impl Ui {
                         self.workspace.focused = false;
                         self.archived_ws.focused = false;
                         self.todolist.focused = true;
-                        self.keymap.focus = CurrentFocus::TodoList;
+                        self.helpwidget.keymap.focus = CurrentFocus::TodoList;
                         self.todolist
                             .change_current_list(&self.archived_ws.current_workspace);
                         let _result = terminal.draw(|f| self.update(f));
                     }
                     WidgetAction::SelectUp => {
                         let apps = appstate.lock().unwrap();
-                        match apps.current_focus {
-                            CurrentFocus::Workspace => {
-                                self.workspace.current_workspace = Workspace::get_selected_bf(
-                                    &self.workspace.current_workspace,
-                                    &self.workspace.workspaces,
-                                    &mut self.workspace.ws_state,
-                                    SelectBF::Back,
-                                );
-                                self.todolist
-                                    .change_current_list(&self.workspace.current_workspace);
-                                let _ = terminal.draw(|f| self.update(f));
-                            }
-                            CurrentFocus::TodoList => {
-                                if let Some(clist) = &self.todolist.current_todolist {
-                                    let mut clist_mut = clist.borrow_mut();
-                                    let tasks = clist_mut.tasks.clone();
-                                    let ctask = clist_mut.current_task.clone();
-                                    // let mut state = &mut clist.borrow_mut().state;
-                                    clist_mut.current_task = TodoList::get_selected_bf(
-                                        &ctask,
-                                        &tasks,
-                                        &mut clist_mut.state,
+                        if let CurrentMode::Help = apps.current_mode {
+                            self.helpwidget.scroll = self.helpwidget.scroll.saturating_sub(1);
+                            self.helpwidget.state =
+                                self.helpwidget.state.position(self.helpwidget.scroll);
+                        } else {
+                            match apps.current_focus {
+                                CurrentFocus::Workspace => {
+                                    self.workspace.current_workspace = Workspace::get_selected_bf(
+                                        &self.workspace.current_workspace,
+                                        &self.workspace.workspaces,
+                                        &mut self.workspace.ws_state,
                                         SelectBF::Back,
                                     );
+                                    self.todolist
+                                        .change_current_list(&self.workspace.current_workspace);
                                 }
-
-                                let _ = terminal.draw(|f| self.update(f));
-                            }
-                            CurrentFocus::ArchivedWorkspace => {
-                                self.archived_ws.current_workspace = Workspace::get_selected_bf(
-                                    &self.archived_ws.current_workspace,
-                                    &self.archived_ws.workspaces,
-                                    &mut self.archived_ws.ws_state,
-                                    SelectBF::Back,
-                                );
-                                self.todolist
-                                    .change_current_list(&self.archived_ws.current_workspace);
-                                let _ = terminal.draw(|f| self.update(f));
+                                CurrentFocus::TodoList => {
+                                    if let Some(clist) = &self.todolist.current_todolist {
+                                        let mut clist_mut = clist.borrow_mut();
+                                        let tasks = clist_mut.tasks.clone();
+                                        let ctask = clist_mut.current_task.clone();
+                                        // let mut state = &mut clist.borrow_mut().state;
+                                        clist_mut.current_task = TodoList::get_selected_bf(
+                                            &ctask,
+                                            &tasks,
+                                            &mut clist_mut.state,
+                                            SelectBF::Back,
+                                        );
+                                    }
+                                }
+                                CurrentFocus::ArchivedWorkspace => {
+                                    self.archived_ws.current_workspace = Workspace::get_selected_bf(
+                                        &self.archived_ws.current_workspace,
+                                        &self.archived_ws.workspaces,
+                                        &mut self.archived_ws.ws_state,
+                                        SelectBF::Back,
+                                    );
+                                    self.todolist
+                                        .change_current_list(&self.archived_ws.current_workspace);
+                                }
                             }
                         }
+                        let _ = terminal.draw(|f| self.update(f));
                     }
                     WidgetAction::SelectDown => {
                         let apps = appstate.lock().unwrap();
-                        match apps.current_focus {
-                            CurrentFocus::Workspace => {
-                                self.workspace.current_workspace = Workspace::get_selected_bf(
-                                    &self.workspace.current_workspace,
-                                    &self.workspace.workspaces,
-                                    &mut self.workspace.ws_state,
-                                    SelectBF::Forward,
-                                );
-                                self.todolist
-                                    .change_current_list(&self.workspace.current_workspace);
-                                let _ = terminal.draw(|f| self.update(f));
-                            }
-                            CurrentFocus::TodoList => {
-                                if let Some(clist) = &self.todolist.current_todolist {
-                                    let mut clist_mut = clist.borrow_mut();
-                                    let tasks = clist_mut.tasks.clone();
-                                    let ctask = clist_mut.current_task.clone();
-                                    // let state = &mut clist_mut.state;
-                                    clist_mut.current_task = TodoList::get_selected_bf(
-                                        &ctask,
-                                        &tasks,
-                                        &mut clist_mut.state,
+                        if let CurrentMode::Help = apps.current_mode {
+                            self.helpwidget.scroll = self
+                                .helpwidget
+                                .scroll
+                                .saturating_add(1)
+                                .min(self.helpwidget.scroll_max);
+                            self.helpwidget.state =
+                                self.helpwidget.state.position(self.helpwidget.scroll);
+                        } else {
+                            match apps.current_focus {
+                                CurrentFocus::Workspace => {
+                                    self.workspace.current_workspace = Workspace::get_selected_bf(
+                                        &self.workspace.current_workspace,
+                                        &self.workspace.workspaces,
+                                        &mut self.workspace.ws_state,
                                         SelectBF::Forward,
                                     );
+                                    self.todolist
+                                        .change_current_list(&self.workspace.current_workspace);
                                 }
-
-                                let _ = terminal.draw(|f| self.update(f));
-                            }
-                            CurrentFocus::ArchivedWorkspace => {
-                                self.archived_ws.current_workspace = Workspace::get_selected_bf(
-                                    &self.archived_ws.current_workspace,
-                                    &self.archived_ws.workspaces,
-                                    &mut self.archived_ws.ws_state,
-                                    SelectBF::Forward,
-                                );
-                                self.todolist
-                                    .change_current_list(&self.archived_ws.current_workspace);
-                                let _ = terminal.draw(|f| self.update(f));
+                                CurrentFocus::TodoList => {
+                                    if let Some(clist) = &self.todolist.current_todolist {
+                                        let mut clist_mut = clist.borrow_mut();
+                                        let tasks = clist_mut.tasks.clone();
+                                        let ctask = clist_mut.current_task.clone();
+                                        // let state = &mut clist_mut.state;
+                                        clist_mut.current_task = TodoList::get_selected_bf(
+                                            &ctask,
+                                            &tasks,
+                                            &mut clist_mut.state,
+                                            SelectBF::Forward,
+                                        );
+                                    }
+                                }
+                                CurrentFocus::ArchivedWorkspace => {
+                                    self.archived_ws.current_workspace = Workspace::get_selected_bf(
+                                        &self.archived_ws.current_workspace,
+                                        &self.archived_ws.workspaces,
+                                        &mut self.archived_ws.ws_state,
+                                        SelectBF::Forward,
+                                    );
+                                    self.todolist
+                                        .change_current_list(&self.archived_ws.current_workspace);
+                                }
                             }
                         }
+                        let _ = terminal.draw(|f| self.update(f));
                     }
                     WidgetAction::DeleteWorkspace => {
                         let input_rx = self.input_rx.clone();
@@ -892,6 +910,18 @@ impl Ui {
                             self.archived_ws.current_workspace = None;
                             self.archived_ws.ws_state.select(None);
                         }
+                    }
+                    WidgetAction::Help => {
+                        self.helpwidget.keymap.mode = CurrentMode::Help;
+                        let _ = terminal.draw(|f| {
+                            self.update(f);
+                        });
+                    }
+                    WidgetAction::ExitHelp => {
+                        self.helpwidget.keymap.mode = CurrentMode::Normal;
+                        let _ = terminal.draw(|f| {
+                            self.update(f);
+                        });
                     }
                     _ => {}
                 },
