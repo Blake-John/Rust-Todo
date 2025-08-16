@@ -1,4 +1,4 @@
-use chrono::{DateTime, Local, NaiveDate};
+use chrono::{Local, NaiveDate};
 use ratatui::{
     style::{Color, Modifier, Style, Styled, Stylize},
     text::{Line, Span},
@@ -18,6 +18,13 @@ pub enum TaskStatus {
     Deprecated,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum Urgency {
+    Critical,
+    Important,
+    Common,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Task {
     pub desc: String,
@@ -26,6 +33,7 @@ pub struct Task {
     pub due: Option<NaiveDate>,
     pub children: Vec<Rc<RefCell<Task>>>,
     pub id: Uuid,
+    pub urgency: Option<Urgency>,
 }
 
 impl Task {
@@ -37,6 +45,7 @@ impl Task {
             due,
             children: Vec::new(),
             id: Uuid::new_v4(),
+            urgency: None,
         }
     }
 
@@ -276,6 +285,7 @@ impl TodoWidget {
         search_string: String,
         task_list: &[Rc<RefCell<Task>>],
         dep: usize,
+        max_desc_len: usize,
     ) -> Vec<ListItem<'a>> {
         let mut task_item = Vec::<ListItem>::new();
         task_list.iter().for_each(|item| {
@@ -287,7 +297,40 @@ impl TodoWidget {
                 TaskStatus::Finished => "✓".green(),
                 TaskStatus::Deprecated => "".red(),
             };
-            let mut contents = Vec::new();
+            let mut contents = vec![prefix, "  ".repeat(dep).into()];
+
+            let mut due_span = Span::raw("");
+            if let Some(due) = item.borrow().due {
+                let delta = due - Local::now().date_naive();
+                let num_days = delta.num_days();
+                match &task.status {
+                    TaskStatus::Todo | TaskStatus::InProcess => {
+                        due_span = match num_days {
+                            ..0 => format!(" {} day over ! ", num_days.abs())
+                                .to_string()
+                                .set_style(Style::new().fg(Color::Yellow)),
+                            0 => format!(" {} day left ! ", num_days)
+                                .to_string()
+                                .set_style(Style::new().fg(Color::Red)),
+                            1 => format!(" {} day left ! ", num_days)
+                                .to_string()
+                                .set_style(Style::new().fg(Color::LightRed)),
+                            2..4 => format!(" {} day left ! ", num_days)
+                                .to_string()
+                                .set_style(Style::new().fg(Color::Yellow)),
+                            4..7 => format!(" {} day left ! ", num_days)
+                                .to_string()
+                                .set_style(Style::new().fg(Color::LightBlue)),
+                            7.. => format!(" {} day left ! ", num_days)
+                                .to_string()
+                                .set_style(Style::new().fg(Color::LightGreen)),
+                        };
+                    }
+                    _ => {}
+                }
+            }
+            let padding_len = max_desc_len - desc.len() - dep * 2 + 1;
+
             if !search_string.is_empty() {
                 let search_strings = search_string.split(" ");
                 let mut idx_str: Vec<(usize, &str)> = Vec::new();
@@ -296,7 +339,6 @@ impl TodoWidget {
                     idx_str.append(&mut v);
                 });
                 if !idx_str.is_empty() {
-                    contents.extend(vec![prefix, "  ".repeat(dep).into()]);
                     idx_str.sort_by(|a, b| a.0.cmp(&b.0));
                     let mut idx_str_merged: Vec<(usize, usize)> = Vec::new();
                     for (idx, s) in idx_str {
@@ -343,7 +385,6 @@ impl TodoWidget {
                         );
                     }
                 } else {
-                    contents.extend(vec![prefix, "  ".repeat(dep).into()]);
                     contents.push(
                         desc.set_style(match &task.status {
                             TaskStatus::Finished => Style::new().fg(Color::LightGreen),
@@ -355,7 +396,6 @@ impl TodoWidget {
                     );
                 }
             } else {
-                contents.extend(vec![prefix, "  ".repeat(dep).into()]);
                 contents.push(
                     desc.set_style(match &task.status {
                         TaskStatus::Finished => Style::new().fg(Color::LightGreen),
@@ -366,11 +406,20 @@ impl TodoWidget {
                     }),
                 );
             }
+            contents.extend(vec![
+                format!("{:padding_len$}", " ").into(),
+                "    ".into(),
+                due_span,
+            ]);
 
             let it = ListItem::new(Line::from(contents.clone()));
             task_item.push(it);
-            let child =
-                TodoWidget::get_search_list_item(search_string.to_owned(), &task.children, dep + 1);
+            let child = TodoWidget::get_search_list_item(
+                search_string.to_owned(),
+                &task.children,
+                dep + 1,
+                max_desc_len,
+            );
             task_item.extend(child);
 
             // if !contents.is_empty() {
@@ -480,8 +529,13 @@ impl Widget for &mut TodoWidget {
                         tar_list.push(task.to_owned());
                     }
                 });
-                let task_list =
-                    TodoWidget::get_search_list_item(self.search_string.clone(), &tar_list, 1);
+                let max_desc_len = TodoWidget::find_max_tasks_len(&tar_list, 1);
+                let task_list = TodoWidget::get_search_list_item(
+                    self.search_string.clone(),
+                    &tar_list,
+                    1,
+                    max_desc_len,
+                );
                 let listwidget =
                     List::new(task_list)
                         .block(block)

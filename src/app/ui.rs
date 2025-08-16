@@ -3,7 +3,7 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::vec;
 
-use chrono::{Date, Days, Local, Months, NaiveDate};
+use chrono::{Days, Local, Months, NaiveDate};
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::text::{Line, Text};
@@ -367,8 +367,13 @@ impl Ui {
                     .title(" <3> Todo List ")
                     .border_style(Style::new().fg(Color::LightBlue))
                     .padding(Padding::uniform(1));
-                let task_list =
-                    TodoWidget::get_search_list_item(search_string.join(" "), &tar_list, 1);
+                let max_desc_len = TodoWidget::find_max_tasks_len(&tar_list, 1);
+                let task_list = TodoWidget::get_search_list_item(
+                    search_string.join(" "),
+                    &tar_list,
+                    1,
+                    max_desc_len,
+                );
                 let tar_list_widget = List::new(task_list).block(tar_list_block);
                 let layout =
                     Layout::vertical([Constraint::Fill(1), Constraint::Max(1)]).split(f.area());
@@ -999,10 +1004,10 @@ impl Ui {
                     WidgetAction::Due => {
                         let mut is_to_set = false;
 
-                        let mut cur_list_opt = self.todolist.current_todolist.clone();
+                        let cur_list_opt = self.todolist.current_todolist.clone();
                         if let Some(cur_list) = cur_list_opt {
-                            let mut cur_task_opt = &cur_list.borrow().current_task;
-                            if let Some(cur_task) = cur_task_opt {
+                            let cur_task_opt = &cur_list.borrow().current_task;
+                            if cur_task_opt.is_some() {
                                 is_to_set = true;
                             }
                         }
@@ -1012,7 +1017,7 @@ impl Ui {
                                 .get_input(input_rx, terminal, "Set Due Date".to_string())
                                 .await;
                             if let Some(cur_list) = &self.todolist.current_todolist {
-                                let mut cur_task_opt = &cur_list.borrow().current_task;
+                                let cur_task_opt = &cur_list.borrow().current_task;
                                 if let Some(cur_task) = cur_task_opt {
                                     if date_str.is_empty() {
                                         cur_task.borrow_mut().due = None;
