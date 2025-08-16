@@ -62,6 +62,7 @@ impl Default for KeymapWidget {
                 ),
                 Keymap::new("esc", "exit current mode", "exit search or help"),
                 Keymap::new("q", "quit", "quit the application"),
+                Keymap::new("ctrl-s", "save", "save the data"),
             ],
             workspace_hint: vec![
                 Keymap::new("a", "add", "add new workspace"),
@@ -69,6 +70,7 @@ impl Default for KeymapWidget {
                 Keymap::new("i", "subworkspace", "insert a subworkspace to current"),
                 Keymap::new("A", "archive", "archive current workspace"),
                 Keymap::new("r", "rename", "rename current workspace"),
+                Keymap::new("ctrl-s", "save", "save the data"),
                 Keymap::new("?", "help", "open the help page"),
             ],
             tasklist_hint: vec![
@@ -84,12 +86,14 @@ impl Default for KeymapWidget {
                 //TODO: Implement sort functionality
                 Keymap::new("s", "sort", "sort the current task by rule (in dev)"),
                 Keymap::new("f /", "filter", "search tasks in current workspace"),
+                Keymap::new("ctrl-s", "save", "save the data"),
                 Keymap::new("?", "help", "open the help page"),
             ],
             archived_ws_hint: vec![
                 Keymap::new("x", "delete", "delete current workspace"),
                 Keymap::new("r", "rename", "rename current workspace"),
                 Keymap::new("R", "recovery", "recovery the current workspace"),
+                Keymap::new("ctrl-s", "save", "save the data"),
                 Keymap::new("?", "help", "open the help page"),
             ],
         }

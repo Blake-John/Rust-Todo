@@ -4,7 +4,7 @@ use std::{
 };
 use tokio::sync::mpsc;
 
-use crossterm::event;
+use crossterm::event::{self, KeyModifiers};
 
 use crate::app::{
     appstate::{AppState, CurrentFocus, CurrentMode, Message},
@@ -101,7 +101,7 @@ impl App {
             let mut ui = ui::Ui::new(ui_rx, input_rx);
             let path = Path::new(
                 std::env::home_dir()
-                    .unwrap_or(std::path::PathBuf::from("/home/blake/"))
+                    .unwrap_or(std::path::PathBuf::from("~"))
                     .as_path(),
             )
             .join(".todo/data.json");
@@ -200,6 +200,11 @@ async fn handle_keyevt(
                         event::KeyCode::Char('q') => {
                             let _ = tx.send(Message::Exit).await;
                             break;
+                        }
+                        event::KeyCode::Char('s')
+                            if key_evt.modifiers.contains(KeyModifiers::CONTROL) =>
+                        {
+                            let _ = tx.send(Message::SaveData).await;
                         }
                         event::KeyCode::Char('a') => {
                             let _ = tx.send(Message::AddItem).await;
@@ -571,6 +576,9 @@ async fn handle_msg(
                 app_state.current_mode = CurrentMode::Insert;
                 drop(app_state);
                 let _ = ui_tx.send(UiMessage::WAction(WidgetAction::Due)).await;
+            }
+            Message::SaveData => {
+                let _ = ui_tx.send(UiMessage::SaveData).await;
             }
         }
     }

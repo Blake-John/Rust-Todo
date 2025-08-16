@@ -76,6 +76,7 @@ pub enum Message {
     Help,
     ExitHelp,
     Due,
+    SaveData,
 }
 
 /// State of which is focused

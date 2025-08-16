@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::path::Path;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::vec;
@@ -17,6 +18,7 @@ use tokio::sync::mpsc;
 use tui_textarea::TextArea;
 
 use crate::app::appstate::{AppState, CurrentFocus, CurrentMode};
+use crate::app::data::{self, Datas};
 use crate::app::ui::helpwidget::HelpWidget;
 use crate::app::ui::todolistwidget::{Task, TaskStatus, TodoList, TodoWidget};
 use crate::app::ui::workspacewidget::Workspace;
@@ -38,6 +40,7 @@ use workspacewidget::WorkspaceWidget;
 pub enum UiMessage {
     Update,
     UpdateUi,
+    SaveData,
     WAction(WidgetAction),
 }
 
@@ -514,6 +517,21 @@ impl Ui {
                 }
                 UiMessage::UpdateUi => {
                     let _result = terminal.draw(|f| self.update(f));
+                }
+                UiMessage::SaveData => {
+                    let path = Path::new(
+                        std::env::home_dir()
+                            .unwrap_or(std::path::PathBuf::from("~"))
+                            .as_path(),
+                    )
+                    .join(".todo/data.json");
+                    let datas = Datas {
+                        workspace: self.workspace.clone(),
+                        todolist: self.todolist.clone(),
+                        archived_ws: self.archived_ws.clone(),
+                    };
+
+                    let _ = data::save_data(path.as_path(), &datas);
                 }
                 UiMessage::WAction(waction) => match waction {
                     WidgetAction::FocusWorkspace => {

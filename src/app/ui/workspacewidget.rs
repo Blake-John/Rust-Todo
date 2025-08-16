@@ -85,7 +85,7 @@ impl Workspace {
 /// - `focused` (`bool`) - whether the widget is focused or not.
 /// - `#[serde(default)] ws_state` (`ListState`) - The [`ListState`] of the [`List`] widget, which is used to select the workspace
 ///   because the workspaces are displayed in a [`List`] widget.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WorkspaceWidget {
     pub workspaces: Vec<Rc<RefCell<Workspace>>>,
     pub current_workspace: Option<Rc<RefCell<Workspace>>>,

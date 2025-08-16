@@ -163,7 +163,7 @@ impl TodoList {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TodoWidget {
     pub todolists: Vec<Rc<RefCell<TodoList>>>,
     pub current_todolist: Option<Rc<RefCell<TodoList>>>,
