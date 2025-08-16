@@ -12,13 +12,15 @@ use crate::app::appstate::{CurrentFocus, CurrentMode};
 pub struct Keymap {
     pub key: String,
     pub desc: String,
+    pub detailed: String,
 }
 
 impl Keymap {
-    fn new(key: &str, desc: &str) -> Self {
+    fn new(key: &str, desc: &str, detail: &str) -> Self {
         Self {
             key: key.to_string(),
             desc: desc.to_string(),
+            detailed: detail.to_string(),
         }
     }
 }
@@ -48,41 +50,47 @@ impl Default for KeymapWidget {
             focus: CurrentFocus::Workspace,
             mode: CurrentMode::Normal,
             general_hint: vec![
-                Keymap::new("h/left", "move left"),
-                Keymap::new("l/right", "move right"),
-                Keymap::new("j/down", "move down"),
-                Keymap::new("k/up", "move up"),
-                Keymap::new("tab", "change focus"),
-                Keymap::new("enter", "enter workspace"),
-                Keymap::new("esc", "exit current mode"),
-                Keymap::new("q", "exit application"),
+                Keymap::new("h/left", "left", "focus on left part(workspace)"),
+                Keymap::new("l/right", "right", "focus on right part(tasks)"),
+                Keymap::new("j/down", "down", "select item bellow"),
+                Keymap::new("k/up", "up", "select item above"),
+                Keymap::new("tab", "focus", "change focus between 3 parts"),
+                Keymap::new(
+                    "enter",
+                    "enter workspace",
+                    "enter into the tasks of the workspace",
+                ),
+                Keymap::new("esc", "exit current mode", "exit search or help"),
+                Keymap::new("q", "quit", "quit the application"),
             ],
             workspace_hint: vec![
-                Keymap::new("a", "add"),
-                Keymap::new("x", "delete"),
-                Keymap::new("i", "subworkspace"),
-                Keymap::new("A", "archive"),
-                Keymap::new("r", "rename"),
-                Keymap::new("?", "help"),
+                Keymap::new("a", "add", "add new workspace"),
+                Keymap::new("x", "delete", "delete current workspace"),
+                Keymap::new("i", "subworkspace", "insert a subworkspace to current"),
+                Keymap::new("A", "archive", "archive current workspace"),
+                Keymap::new("r", "rename", "rename current workspace"),
+                Keymap::new("?", "help", "open the help page"),
             ],
             tasklist_hint: vec![
-                Keymap::new("a", "add"),
-                Keymap::new("x", "delete"),
-                Keymap::new("i", "subtask"),
-                Keymap::new("c", "complete"),
-                Keymap::new("p", "inprocess"),
-                Keymap::new("t", "todo"),
-                Keymap::new("r", "rename"),
+                Keymap::new("a", "add", "add new task"),
+                Keymap::new("x", "delete", "delete current task"),
+                Keymap::new("i", "subtask", "insert a subtask to current"),
+                Keymap::new("c", "complete", "mark the task as completed"),
+                Keymap::new("p", "inprocess", "mark the task as in process"),
+                Keymap::new("t", "todo", "mark the task as todo"),
+                Keymap::new("d", "deprecate", "mark the task as deprecated"),
+                Keymap::new("D", "due", "set the due date of current task"),
+                Keymap::new("r", "rename", "rename the current task"),
                 //TODO: Implement sort functionality
-                Keymap::new("s", "sort"),
-                Keymap::new("f /", "filter"),
-                Keymap::new("?", "help"),
+                Keymap::new("s", "sort", "sort the current task by rule (in dev)"),
+                Keymap::new("f /", "filter", "search tasks in current workspace"),
+                Keymap::new("?", "help", "open the help page"),
             ],
             archived_ws_hint: vec![
-                Keymap::new("x", "delete"),
-                Keymap::new("r", "rename"),
-                Keymap::new("R", "recovery"),
-                Keymap::new("?", "help"),
+                Keymap::new("x", "delete", "delete current workspace"),
+                Keymap::new("r", "rename", "rename current workspace"),
+                Keymap::new("R", "recovery", "recovery the current workspace"),
+                Keymap::new("?", "help", "open the help page"),
             ],
         }
     }

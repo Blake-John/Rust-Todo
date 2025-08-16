@@ -3,6 +3,7 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use std::vec;
 
+use chrono::{Date, Days, Local, Months, NaiveDate};
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style, Stylize};
 use ratatui::text::{Line, Text};
@@ -11,6 +12,7 @@ use ratatui::{
     DefaultTerminal, Frame,
     layout::{Constraint, Layout},
 };
+use regex::Regex;
 use tokio::sync::mpsc;
 use tui_textarea::TextArea;
 
@@ -70,6 +72,7 @@ pub enum WidgetAction {
 
     Help,
     ExitHelp,
+    Due,
 }
 
 /// The select direction, whether to go back or forward
@@ -177,10 +180,11 @@ impl Ui {
         }
     }
 
-    pub async fn add_item(
+    pub async fn get_input(
         &mut self,
         input_rx: Arc<Mutex<mpsc::Receiver<InputEvent>>>,
         terminal: &mut DefaultTerminal,
+        title: String,
     ) -> String {
         let mut textarea = TextArea::default();
         let mut item = String::new();
@@ -190,7 +194,7 @@ impl Ui {
                 self.update(f);
                 // let area = Ui::get_popup_window_center(50, 20, f);
                 let area = Ui::get_add_item_window(f);
-                let block = Block::bordered().title(" Add Item ");
+                let block = Block::bordered().title(format!(" {} ", title));
                 textarea.set_block(block);
                 f.render_widget(Clear, area);
                 f.render_widget(&textarea, area);
@@ -530,7 +534,9 @@ impl Ui {
                     }
                     WidgetAction::AddWorkspace => {
                         let input_rx = self.input_rx.clone();
-                        let result = self.add_item(input_rx, terminal).await;
+                        let result = self
+                            .get_input(input_rx, terminal, "Add Workspace".to_string())
+                            .await;
                         if !result.is_empty() {
                             let ws = Rc::new(RefCell::new(Workspace::new(result)));
                             let ws_id = ws.borrow().id;
@@ -546,7 +552,9 @@ impl Ui {
                     }
                     WidgetAction::AddWorkspaceChild => {
                         let input_rx = self.input_rx.clone();
-                        let result = self.add_item(input_rx, terminal).await;
+                        let result = self
+                            .get_input(input_rx, terminal, "Add Subworkspace".to_string())
+                            .await;
                         if !result.is_empty() {
                             let workspace = Rc::new(RefCell::new(Workspace::new(result)));
                             let ws_id = workspace.borrow().id.to_owned();
@@ -562,7 +570,9 @@ impl Ui {
                     }
                     WidgetAction::AddTask => {
                         let input_rx = self.input_rx.clone();
-                        let result = self.add_item(input_rx, terminal).await;
+                        let result = self
+                            .get_input(input_rx, terminal, "Add Task".to_string())
+                            .await;
                         if !result.is_empty()
                             && let Some(ctl) = &self.todolist.current_todolist
                         {
@@ -577,7 +587,9 @@ impl Ui {
                     }
                     WidgetAction::AddTaskChild => {
                         let input_rx = self.input_rx.clone();
-                        let result = self.add_item(input_rx, terminal).await;
+                        let result = self
+                            .get_input(input_rx, terminal, "Add Subtask".to_string())
+                            .await;
                         if !result.is_empty()
                             && let Some(ctl) = &self.todolist.current_todolist
                         {
@@ -759,6 +771,46 @@ impl Ui {
                         let mut apps = appstate.lock().unwrap();
                         apps.current_mode = CurrentMode::Normal;
                     }
+                    WidgetAction::DeleteArchivedWorkspace => {
+                        let input_rx = self.input_rx.clone();
+                        let result = self.delete_item(input_rx, terminal).await;
+                        if result {
+                            let cur_ws_opt = self.archived_ws.current_workspace.clone();
+                            let mut second_confirm = true;
+                            if let Some(cur_ws) = &cur_ws_opt {
+                                let cur_ws_bo = cur_ws.borrow();
+                                if !cur_ws_bo.children.is_empty() {
+                                    let input_rx = self.input_rx.clone();
+                                    second_confirm = self
+                                        .confirm_delete(
+                                            input_rx,
+                                            terminal,
+                                            CurrentFocus::ArchivedWorkspace,
+                                        )
+                                        .await;
+                                }
+                                if cur_ws_bo.has_todolist(&self.todolist) && second_confirm {
+                                    let input_rx = self.input_rx.clone();
+                                    second_confirm = self
+                                        .confirm_delete(input_rx, terminal, CurrentFocus::TodoList)
+                                        .await
+                                }
+                                if second_confirm {
+                                    WorkspaceWidget::delete_item(
+                                        &mut self.archived_ws.workspaces,
+                                        cur_ws,
+                                    );
+                                    let tar_ws = cur_ws_bo.id;
+                                    self.archived_ws.current_workspace = None;
+                                    self.archived_ws.ws_state.select(None);
+                                    self.todolist.delete_list(tar_ws);
+                                }
+                            }
+                        }
+                        let _ = terminal.draw(|f| self.update(f));
+                        let mut apps = appstate.lock().unwrap();
+                        apps.current_mode = CurrentMode::Normal;
+                    }
                     WidgetAction::DeleteTask => {
                         let input_rx = self.input_rx.clone();
                         let result = self.delete_item(input_rx, terminal).await;
@@ -818,7 +870,9 @@ impl Ui {
                                 let cur_ws_opt = self.workspace.current_workspace.clone();
                                 if let Some(cur_ws) = &cur_ws_opt {
                                     let input_rx = self.input_rx.clone();
-                                    let new_name = self.add_item(input_rx, terminal).await;
+                                    let new_name = self
+                                        .get_input(input_rx, terminal, "Rename".to_string())
+                                        .await;
                                     if !new_name.is_empty() {
                                         let mut cur_ws_mut = cur_ws.borrow_mut();
                                         cur_ws_mut.rename(new_name);
@@ -838,7 +892,9 @@ impl Ui {
 
                                 if can_renmae {
                                     let input_rx = self.input_rx.clone();
-                                    let new_name = self.add_item(input_rx, terminal).await;
+                                    let new_name = self
+                                        .get_input(input_rx, terminal, "Rename".to_string())
+                                        .await;
                                     if !new_name.is_empty() {
                                         let cur_list_opt = self.todolist.current_todolist.clone();
                                         if let Some(cur_list) = cur_list_opt {
@@ -856,7 +912,9 @@ impl Ui {
                                 let cur_ws_opt = self.archived_ws.current_workspace.clone();
                                 if let Some(cur_ws) = &cur_ws_opt {
                                     let input_rx = self.input_rx.clone();
-                                    let new_name = self.add_item(input_rx, terminal).await;
+                                    let new_name = self
+                                        .get_input(input_rx, terminal, "Rename".to_string())
+                                        .await;
                                     if !new_name.is_empty() {
                                         let mut cur_ws_mut = cur_ws.borrow_mut();
                                         cur_ws_mut.rename(new_name);
@@ -938,7 +996,94 @@ impl Ui {
                             self.update(f);
                         });
                     }
-                    _ => {}
+                    WidgetAction::Due => {
+                        let mut is_to_set = false;
+
+                        let mut cur_list_opt = self.todolist.current_todolist.clone();
+                        if let Some(cur_list) = cur_list_opt {
+                            let mut cur_task_opt = &cur_list.borrow().current_task;
+                            if let Some(cur_task) = cur_task_opt {
+                                is_to_set = true;
+                            }
+                        }
+                        if is_to_set {
+                            let input_rx = self.input_rx.clone();
+                            let date_str = self
+                                .get_input(input_rx, terminal, "Set Due Date".to_string())
+                                .await;
+                            if let Some(cur_list) = &self.todolist.current_todolist {
+                                let mut cur_task_opt = &cur_list.borrow().current_task;
+                                if let Some(cur_task) = cur_task_opt {
+                                    if date_str.is_empty() {
+                                        cur_task.borrow_mut().due = None;
+                                    } else {
+                                        let date_result = NaiveDate::parse_from_str(
+                                            date_str.as_str(),
+                                            "%Y-%m-%d",
+                                        );
+                                        if let Ok(date) = date_result {
+                                            cur_task.borrow_mut().due = Some(date);
+                                        } else {
+                                            let day_re = Regex::new(r"(\d+) days?").unwrap();
+                                            let week_re = Regex::new(r"(\d+) weeks?").unwrap();
+                                            let month_re = Regex::new(r"(\d+) months?").unwrap();
+
+                                            if let Some(caped) =
+                                                day_re.captures_at(date_str.as_str(), 0)
+                                            {
+                                                let date = Local::now()
+                                                    .checked_add_days(Days::new(
+                                                        caped[1].parse().unwrap_or_default(),
+                                                    ))
+                                                    .unwrap()
+                                                    .date_naive();
+                                                cur_task.borrow_mut().due = Some(date);
+                                            } else if let Some(caped) =
+                                                week_re.captures_at(date_str.as_str(), 0)
+                                            {
+                                                let day =
+                                                    caped[1].parse::<i64>().unwrap_or_default() * 7;
+                                                let date = Local::now()
+                                                    .checked_add_days(Days::new(day as u64))
+                                                    .unwrap()
+                                                    .date_naive();
+                                                cur_task.borrow_mut().due = Some(date);
+                                            } else if let Some(caped) =
+                                                month_re.captures_at(date_str.as_str(), 0)
+                                            {
+                                                println!("{} month", &caped[1]);
+                                                let date = Local::now()
+                                                    .checked_add_months(Months::new(
+                                                        caped[1].parse().unwrap_or_default(),
+                                                    ))
+                                                    .unwrap()
+                                                    .date_naive();
+                                                cur_task.borrow_mut().due = Some(date);
+                                            } else if date_str == "today" {
+                                                cur_task.borrow_mut().due =
+                                                    Some(Local::now().date_naive());
+                                            } else if date_str == "tomorrow" {
+                                                cur_task.borrow_mut().due = Some(
+                                                    Local::now()
+                                                        .checked_add_days(Days::new(1))
+                                                        .unwrap()
+                                                        .date_naive(),
+                                                );
+                                            } else {
+                                                cur_task.borrow_mut().due =
+                                                    Some(Local::now().date_naive());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        let _ = terminal.draw(|f| {
+                            self.update(f);
+                        });
+                        let mut apps = appstate.lock().unwrap();
+                        apps.current_mode = CurrentMode::Normal;
+                    }
                 },
             }
         }

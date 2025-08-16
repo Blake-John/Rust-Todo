@@ -1,12 +1,11 @@
-use std::{cell::RefCell, rc::Rc};
-
-use chrono::{DateTime, Local};
+use chrono::{DateTime, Local, NaiveDate};
 use ratatui::{
     style::{Color, Modifier, Style, Styled, Stylize},
-    text::Line,
+    text::{Line, Span},
     widgets::{Block, List, ListItem, ListState, Padding, StatefulWidget, Widget},
 };
 use serde::{Deserialize, Serialize};
+use std::{cell::RefCell, rc::Rc};
 use uuid::Uuid;
 
 use crate::app::ui::{SelectAction, SelectBF, workspacewidget::Workspace};
@@ -24,13 +23,13 @@ pub struct Task {
     pub desc: String,
     pub status: TaskStatus,
     pub expanded: bool,
-    pub due: Option<DateTime<Local>>,
+    pub due: Option<NaiveDate>,
     pub children: Vec<Rc<RefCell<Task>>>,
     pub id: Uuid,
 }
 
 impl Task {
-    pub fn new(desc: String, due: Option<DateTime<Local>>) -> Self {
+    pub fn new(desc: String, due: Option<NaiveDate>) -> Self {
         Self {
             desc,
             status: TaskStatus::Todo,
@@ -175,9 +174,26 @@ impl TodoWidget {
             search_string: String::new(),
         }
     }
+
+    pub fn find_max_tasks_len(task_list: &[Rc<RefCell<Task>>], dep: usize) -> usize {
+        let mut max_len = 0;
+        task_list.iter().for_each(|item| {
+            max_len = max_len.max(item.borrow().desc.len() + dep * 2_usize);
+            if !item.borrow().children.is_empty() {
+                max_len = max_len.max(TodoWidget::find_max_tasks_len(
+                    &item.borrow().children,
+                    dep + 1,
+                ));
+            }
+        });
+
+        max_len
+    }
+
     pub fn get_task_list_item<'a>(
         task_list: &[Rc<RefCell<Task>>],
         dep: usize,
+        max_desc_len: usize,
     ) -> Vec<ListItem<'a>> {
         let mut task_item = Vec::<ListItem>::new();
         task_list.iter().for_each(|item| {
@@ -189,13 +205,44 @@ impl TodoWidget {
                 TaskStatus::Finished => "✓".green(),
                 TaskStatus::Deprecated => "".red(),
             };
+            let mut due_span = Span::raw("");
+            if let Some(due) = item.borrow().due {
+                let delta = due - Local::now().date_naive();
+                let num_days = delta.num_days();
+                match &task.status {
+                    TaskStatus::Todo | TaskStatus::InProcess => {
+                        due_span = match num_days {
+                            ..0 => format!(" {} day over ! ", num_days.abs())
+                                .to_string()
+                                .set_style(Style::new().fg(Color::Yellow)),
+                            0 => format!(" {} day left ! ", num_days)
+                                .to_string()
+                                .set_style(Style::new().fg(Color::Red)),
+                            1 => format!(" {} day left ! ", num_days)
+                                .to_string()
+                                .set_style(Style::new().fg(Color::LightRed)),
+                            2..4 => format!(" {} day left ! ", num_days)
+                                .to_string()
+                                .set_style(Style::new().fg(Color::Yellow)),
+                            4..7 => format!(" {} day left ! ", num_days)
+                                .to_string()
+                                .set_style(Style::new().fg(Color::LightBlue)),
+                            7.. => format!(" {} day left ! ", num_days)
+                                .to_string()
+                                .set_style(Style::new().fg(Color::LightGreen)),
+                        };
+                    }
+                    _ => {}
+                }
+            }
+            let padding_len = max_desc_len - desc.len() - dep * 2 + 1;
             let it = ListItem::new(Line::from(vec![
                 prefix,
                 "  ".repeat(dep).into(),
                 //     .set_style(match &task.status {
-                //     TaskStatus::Finished => Style::new()
-                //         .add_modifier(Modifier::CROSSED_OUT)
-                //         .fg(Color::LightGreen),
+                //     // TaskStatus::Finished => Style::new()
+                //     //     .add_modifier(Modifier::CROSSED_OUT)
+                //     //     .fg(Color::LightGreen),
                 //     TaskStatus::Deprecated => Style::new()
                 //         .add_modifier(Modifier::CROSSED_OUT)
                 //         .fg(Color::Red),
@@ -210,11 +257,14 @@ impl TodoWidget {
                         .fg(Color::Red),
                     _ => Style::default(),
                 }),
+                format!("{:padding_len$}", " ").into(),
+                "    ".into(),
+                due_span,
             ]));
             task_item.push(it);
 
             if task.expanded {
-                let child = TodoWidget::get_task_list_item(&task.children, dep + 1);
+                let child = TodoWidget::get_task_list_item(&task.children, dep + 1, max_desc_len);
                 task_item.extend(child);
             }
         });
@@ -409,7 +459,8 @@ impl Widget for &mut TodoWidget {
         if let Some(todolist) = &self.current_todolist {
             if self.search_string.is_empty() {
                 let tasks = todolist.borrow().tasks.to_owned();
-                let task_list = TodoWidget::get_task_list_item(&tasks, 1);
+                let max_desc_len = TodoWidget::find_max_tasks_len(&tasks, 1);
+                let task_list = TodoWidget::get_task_list_item(&tasks, 1, max_desc_len);
                 let listwidget =
                     List::new(task_list)
                         .block(block)

@@ -249,6 +249,11 @@ async fn handle_keyevt(
                                 let _ = tx.send(Message::Deprecated).await;
                             }
                         }
+                        event::KeyCode::Char('D') => {
+                            if let CurrentFocus::TodoList = apps.current_focus {
+                                let _ = tx.send(Message::Due).await;
+                            }
+                        }
                         event::KeyCode::Char('x') => {
                             let _ = tx.send(Message::DeleteItem).await;
                         }
@@ -560,6 +565,12 @@ async fn handle_msg(
                 app_state.current_mode = CurrentMode::Normal;
                 drop(app_state);
                 let _ = ui_tx.send(UiMessage::WAction(WidgetAction::ExitHelp)).await;
+            }
+            Message::Due => {
+                let mut app_state = appstate.lock().unwrap();
+                app_state.current_mode = CurrentMode::Insert;
+                drop(app_state);
+                let _ = ui_tx.send(UiMessage::WAction(WidgetAction::Due)).await;
             }
         }
     }

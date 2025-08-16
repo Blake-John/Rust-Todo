@@ -42,7 +42,7 @@ impl Widget for &mut HelpWidget {
         .split(v_layouts[1]);
 
         let block = Block::bordered()
-            .title("Help Page")
+            .title(" Help Page ")
             // .border_style(Style::new().light_cyan())
             .title_alignment(ratatui::layout::Alignment::Center);
 
@@ -61,28 +61,28 @@ impl Widget for &mut HelpWidget {
         keymap_widget.general_hint.iter().for_each(|hint| {
             general_keys.push(Line::from(vec![
                 Span::from(format!("{:12}", hint.key.to_owned())).light_cyan(),
-                Span::from(format!("{:12}", hint.desc.to_owned())),
+                Span::from(format!("{:12}", hint.detailed.to_owned())),
             ]));
         });
         general_keys.push(Line::from(""));
         keymap_widget.workspace_hint.iter().for_each(|hint| {
             workspace_keys.push(Line::from(vec![
                 Span::from(format!("{:12}", hint.key.to_owned())).light_green(),
-                Span::from(format!("{:12}", hint.desc.to_owned())),
+                Span::from(format!("{:12}", hint.detailed.to_owned())),
             ]));
         });
         workspace_keys.push(Line::from(""));
         keymap_widget.tasklist_hint.iter().for_each(|hint| {
             todolist_keys.push(Line::from(vec![
                 Span::from(format!("{:12}", hint.key.to_owned())).light_blue(),
-                Span::from(format!("{:12}", hint.desc.to_owned())),
+                Span::from(format!("{:12}", hint.detailed.to_owned())),
             ]));
         });
         todolist_keys.push(Line::from(""));
         keymap_widget.archived_ws_hint.iter().for_each(|hint| {
             archived_ws_keys.push(Line::from(vec![
                 Span::from(format!("{:12}", hint.key.to_owned())).light_yellow(),
-                Span::from(format!("{:12}", hint.desc.to_owned())),
+                Span::from(format!("{:12}", hint.detailed.to_owned())),
             ]));
         });
         archived_ws_keys.push(Line::from(""));
@@ -92,8 +92,8 @@ impl Widget for &mut HelpWidget {
         para_lines.extend(workspace_keys);
         para_lines.extend(todolist_keys);
         para_lines.extend(archived_ws_keys);
-        self.state = self.state.content_length(para_lines.len());
-        self.scroll_max = para_lines.len() - 5;
+        self.state = self.state.content_length(para_lines.len() - 5 - 1);
+        self.scroll_max = para_lines.len() - 5 - 1;
         let para = Paragraph::new(para_lines)
             .block(block)
             .scroll((self.scroll as u16, 0));

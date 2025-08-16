@@ -75,6 +75,7 @@ pub enum Message {
     SearchMsg(SearchEvent),
     Help,
     ExitHelp,
+    Due,
 }
 
 /// State of which is focused
