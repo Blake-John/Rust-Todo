@@ -4,7 +4,7 @@ use std::{
 };
 use tokio::sync::mpsc;
 
-use crossterm::event::{self, KeyModifiers};
+use crossterm::event::{self, Event, KeyEvent, KeyModifiers};
 
 use crate::app::{
     appstate::{AppState, CurrentFocus, CurrentMode, Message},
@@ -77,7 +77,7 @@ impl App {
         let mut terminal = ratatui::init();
         let (tx, rx) = mpsc::channel::<Message>(10);
         let (ui_tx, ui_rx) = mpsc::channel::<UiMessage>(10);
-        let (input_tx, input_rx) = mpsc::channel::<InputEvent>(10);
+        let (input_tx, input_rx) = mpsc::channel::<KeyEvent>(10);
 
         let apps_in_keyhand = self.appstate.clone();
         let key_handle = std::thread::spawn(move || {
@@ -181,7 +181,7 @@ impl Default for App {
 /// ```
 async fn handle_keyevt(
     tx: mpsc::Sender<Message>,
-    input_tx: mpsc::Sender<InputEvent>,
+    input_tx: mpsc::Sender<KeyEvent>,
     appstate: Arc<Mutex<AppState>>,
 ) {
     loop {
@@ -307,27 +307,30 @@ async fn handle_keyevt(
                         }
                         _ => {}
                     },
-                    CurrentMode::Insert => match key_evt.code {
-                        event::KeyCode::Char(c) => {
-                            let _ = input_tx.send(InputEvent::InsertChar(c)).await;
-                        }
-                        event::KeyCode::Backspace => {
-                            let _ = input_tx.send(InputEvent::Backspace).await;
-                        }
-                        event::KeyCode::Esc => {
-                            let _ = input_tx.send(InputEvent::Esc).await;
-                        }
-                        event::KeyCode::Enter => {
-                            let _ = input_tx.send(InputEvent::Enter).await;
-                        }
-                        event::KeyCode::Left => {
-                            let _ = input_tx.send(InputEvent::Left).await;
-                        }
-                        event::KeyCode::Right => {
-                            let _ = input_tx.send(InputEvent::Right).await;
-                        }
-                        _ => {}
-                    },
+                    CurrentMode::Insert => {
+                        let _ = input_tx.send(key_evt).await;
+                    }
+                    // match key_evt.code {
+                    //     event::KeyCode::Char(c) => {
+                    //         let _ = input_tx.send(InputEvent::InsertChar(c)).await;
+                    //     }
+                    //     event::KeyCode::Backspace => {
+                    //         let _ = input_tx.send(InputEvent::Backspace).await;
+                    //     }
+                    //     event::KeyCode::Esc => {
+                    //         let _ = input_tx.send(InputEvent::Esc).await;
+                    //     }
+                    //     event::KeyCode::Enter => {
+                    //         let _ = input_tx.send(InputEvent::Enter).await;
+                    //     }
+                    //     event::KeyCode::Left => {
+                    //         let _ = input_tx.send(InputEvent::Left).await;
+                    //     }
+                    //     event::KeyCode::Right => {
+                    //         let _ = input_tx.send(InputEvent::Right).await;
+                    //     }
+                    //     _ => {}
+                    // },
                     CurrentMode::Help => match key_evt.code {
                         event::KeyCode::Char('j') | event::KeyCode::Down => {
                             let _ = tx.send(Message::MoveDown).await;

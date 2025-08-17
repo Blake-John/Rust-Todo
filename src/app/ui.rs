@@ -5,9 +5,10 @@ use std::sync::{Arc, Mutex};
 use std::vec;
 
 use chrono::{Days, Local, Months, NaiveDate};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style, Stylize};
-use ratatui::text::{Line, Text};
+use ratatui::text::{self, Line, Text};
 use ratatui::widgets::{Block, Clear, List, ListState, Padding, Paragraph};
 use ratatui::{
     DefaultTerminal, Frame,
@@ -19,10 +20,12 @@ use tui_textarea::TextArea;
 
 use crate::app::appstate::{AppState, CurrentFocus, CurrentMode};
 use crate::app::data::{self, Datas};
+use crate::app::ui::calendarwidget::CalendarWidget;
 use crate::app::ui::helpwidget::HelpWidget;
 use crate::app::ui::todolistwidget::{Task, TaskStatus, TodoList, TodoWidget};
 use crate::app::ui::workspacewidget::Workspace;
 
+pub mod calendarwidget;
 pub mod helpwidget;
 pub mod keymap;
 pub mod todolistwidget;
@@ -119,7 +122,7 @@ pub struct Ui {
     // pub keymap: KeymapWidget,
     pub helpwidget: HelpWidget,
     pub ui_rx: mpsc::Receiver<UiMessage>,
-    pub input_rx: Arc<Mutex<mpsc::Receiver<InputEvent>>>,
+    pub input_rx: Arc<Mutex<mpsc::Receiver<KeyEvent>>>,
 }
 
 pub trait SelectAction<T> {
@@ -156,7 +159,7 @@ pub trait SelectAction<T> {
 }
 
 impl Ui {
-    pub fn new(ui_rx: mpsc::Receiver<UiMessage>, input_rx: mpsc::Receiver<InputEvent>) -> Self {
+    pub fn new(ui_rx: mpsc::Receiver<UiMessage>, input_rx: mpsc::Receiver<KeyEvent>) -> Self {
         Self {
             workspace: WorkspaceWidget::new(workspacewidget::WorkspaceType::Normal),
             todolist: TodoWidget::new(),
@@ -182,10 +185,109 @@ impl Ui {
             f.render_widget(&mut self.helpwidget, f.area());
         }
     }
+    pub async fn input_due_date(
+        &mut self,
+        input_rx: Arc<Mutex<mpsc::Receiver<KeyEvent>>>,
+        terminal: &mut DefaultTerminal,
+        title: String,
+        origin_due: Option<NaiveDate>,
+    ) -> String {
+        let mut textarea = TextArea::default();
+        let placeholder = if let Some(due) = origin_due {
+            due.to_string()
+        } else {
+            "".to_string()
+        };
+        textarea.set_placeholder_text(placeholder.clone());
+        let mut item = String::new();
+        let mut receiver = input_rx.lock().unwrap();
+        let mut render_calendar = false;
+        let mut calendar = CalendarWidget::new();
+        loop {
+            let _ = terminal.draw(|f| {
+                self.update(f);
+                // let area = Ui::get_popup_window_center(50, 20, f);
+                let area = Ui::get_add_item_window(f);
+                let block = Block::bordered()
+                    .title(format!(" {} ", title))
+                    .title_bottom(
+                        Line::from(" press <ctrl-o> for calendar, input 'None' for unset ")
+                            .right_aligned(),
+                    );
+                textarea.set_block(block);
+                f.render_widget(Clear, area);
+                f.render_widget(&textarea, area);
+                if render_calendar {
+                    f.render_widget(&mut calendar, f.area());
+                }
+            });
+            if let Some(key_evt) = receiver.recv().await {
+                if !render_calendar {
+                    match key_evt.code {
+                        KeyCode::Esc => break,
+                        KeyCode::Backspace => {
+                            textarea.delete_char();
+                        }
+                        KeyCode::Right => {
+                            textarea.move_cursor(tui_textarea::CursorMove::Forward);
+                        }
+                        KeyCode::Left => {
+                            textarea.move_cursor(tui_textarea::CursorMove::Back);
+                        }
+                        KeyCode::Enter => {
+                            let content = textarea.into_lines();
+                            content.iter().for_each(|s| {
+                                item += s;
+                            });
+                            break;
+                        }
+                        KeyCode::Char('o') if key_evt.modifiers.contains(KeyModifiers::CONTROL) => {
+                            render_calendar = true;
+                        }
+                        KeyCode::Char(c) => {
+                            textarea.insert_char(c);
+                        }
+                        _ => {}
+                    }
+                } else {
+                    match key_evt.code {
+                        KeyCode::Char('h') | KeyCode::Left => {
+                            calendar.move_left();
+                        }
+                        KeyCode::Char('l') | KeyCode::Right => {
+                            calendar.move_right();
+                        }
+                        KeyCode::Char('j') | KeyCode::Down => {
+                            calendar.move_down();
+                        }
+                        KeyCode::Char('k') | KeyCode::Up => {
+                            calendar.move_up();
+                        }
+                        KeyCode::Esc => {
+                            render_calendar = false;
+                        }
+                        KeyCode::Enter => {
+                            item = calendar.cursor.to_string();
+                            break;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        drop(receiver);
+        if item.is_empty() {
+            placeholder
+        } else if item == "None" {
+            "".to_string()
+        } else {
+            item
+        }
+    }
 
     pub async fn get_input(
         &mut self,
-        input_rx: Arc<Mutex<mpsc::Receiver<InputEvent>>>,
+        input_rx: Arc<Mutex<mpsc::Receiver<KeyEvent>>>,
         terminal: &mut DefaultTerminal,
         title: String,
     ) -> String {
@@ -202,28 +304,29 @@ impl Ui {
                 f.render_widget(Clear, area);
                 f.render_widget(&textarea, area);
             });
-            if let Some(evt) = receiver.recv().await {
-                match evt {
-                    InputEvent::Esc => break,
-                    InputEvent::InsertChar(c) => {
+            if let Some(key_evt) = receiver.recv().await {
+                match key_evt.code {
+                    KeyCode::Esc => break,
+                    KeyCode::Char(c) => {
                         textarea.insert_char(c);
                     }
-                    InputEvent::Backspace => {
+                    KeyCode::Backspace => {
                         textarea.delete_char();
                     }
-                    InputEvent::Right => {
+                    KeyCode::Right => {
                         textarea.move_cursor(tui_textarea::CursorMove::Forward);
                     }
-                    InputEvent::Left => {
+                    KeyCode::Left => {
                         textarea.move_cursor(tui_textarea::CursorMove::Back);
                     }
-                    InputEvent::Enter => {
-                        let content = textarea.to_owned().into_lines();
+                    KeyCode::Enter => {
+                        let content = textarea.into_lines();
                         content.iter().for_each(|s| {
                             item += s;
                         });
                         break;
                     }
+                    _ => {}
                 }
             }
         }
@@ -248,7 +351,7 @@ impl Ui {
 
     pub async fn delete_item(
         &mut self,
-        input_rx: Arc<Mutex<mpsc::Receiver<InputEvent>>>,
+        input_rx: Arc<Mutex<mpsc::Receiver<KeyEvent>>>,
         terminal: &mut DefaultTerminal,
     ) -> bool {
         let _ = terminal.draw(|f| {
@@ -269,17 +372,10 @@ impl Ui {
         });
         let mut receiver = input_rx.lock().unwrap();
         loop {
-            if let Some(evt) = receiver.recv().await {
-                match evt {
-                    InputEvent::InsertChar('y') => {
-                        return true;
-                    }
-                    InputEvent::InsertChar('n') => {
-                        return false;
-                    }
-                    InputEvent::Esc => {
-                        return false;
-                    }
+            if let Some(key_evt) = receiver.recv().await {
+                match key_evt.code {
+                    KeyCode::Char('y') => return true,
+                    KeyCode::Char('n') | KeyCode::Esc => return false,
                     _ => {}
                 }
             }
@@ -288,7 +384,7 @@ impl Ui {
 
     pub async fn confirm_delete(
         &mut self,
-        input_rx: Arc<Mutex<mpsc::Receiver<InputEvent>>>,
+        input_rx: Arc<Mutex<mpsc::Receiver<KeyEvent>>>,
         terminal: &mut DefaultTerminal,
         target: CurrentFocus,
     ) -> bool {
@@ -322,17 +418,10 @@ impl Ui {
         });
         let mut receiver = input_rx.lock().unwrap();
         loop {
-            if let Some(evt) = receiver.recv().await {
-                match evt {
-                    InputEvent::InsertChar('y') => {
-                        return true;
-                    }
-                    InputEvent::InsertChar('n') => {
-                        return false;
-                    }
-                    InputEvent::Esc => {
-                        return false;
-                    }
+            if let Some(key_evt) = receiver.recv().await {
+                match key_evt.code {
+                    KeyCode::Char('y') => return true,
+                    KeyCode::Char('n') | KeyCode::Esc => return false,
                     _ => {}
                 }
             }
@@ -341,7 +430,7 @@ impl Ui {
 
     pub async fn filter_find(
         &mut self,
-        input_rx: Arc<Mutex<mpsc::Receiver<InputEvent>>>,
+        input_rx: Arc<Mutex<mpsc::Receiver<KeyEvent>>>,
         terminal: &mut DefaultTerminal,
     ) -> String {
         let mut textarea = TextArea::default();
@@ -393,28 +482,29 @@ impl Ui {
                 f.render_widget(Clear, find_area);
                 f.render_widget(&textarea, find_area);
             });
-            if let Some(evt) = receiver.recv().await {
-                match evt {
-                    InputEvent::Esc => break,
-                    InputEvent::InsertChar(c) => {
+            if let Some(key_evt) = receiver.recv().await {
+                match key_evt.code {
+                    KeyCode::Esc => break,
+                    KeyCode::Char(c) => {
                         textarea.insert_char(c);
                     }
-                    InputEvent::Backspace => {
+                    KeyCode::Backspace => {
                         textarea.delete_char();
                     }
-                    InputEvent::Right => {
+                    KeyCode::Right => {
                         textarea.move_cursor(tui_textarea::CursorMove::Forward);
                     }
-                    InputEvent::Left => {
+                    KeyCode::Left => {
                         textarea.move_cursor(tui_textarea::CursorMove::Back);
                     }
-                    InputEvent::Enter => {
-                        let content = textarea.to_owned().into_lines();
+                    KeyCode::Enter => {
+                        let content = textarea.into_lines();
                         content.iter().for_each(|s| {
                             item += s;
                         });
                         break;
                     }
+                    _ => {}
                 }
             }
         }
@@ -489,13 +579,29 @@ impl Ui {
         h_layout[1]
     }
 
-    pub fn get_popup_window_center(percent_x: u16, percent_y: u16, f: &mut Frame) -> Rect {
+    pub fn get_popup_window_center_by_frame(percent_x: u16, percent_y: u16, f: &mut Frame) -> Rect {
         let layout1 = Layout::horizontal([
             Constraint::Percentage((100 - percent_x) / 2),
             Constraint::Percentage(percent_x),
             Constraint::Percentage((100 - percent_x) / 2),
         ])
         .split(f.area());
+
+        Layout::vertical([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(layout1[1])[1]
+    }
+
+    pub fn get_popup_window_center_by_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {
+        let layout1 = Layout::horizontal([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(area);
 
         Layout::vertical([
             Constraint::Percentage((100 - percent_y) / 2),
@@ -1021,18 +1127,25 @@ impl Ui {
                     }
                     WidgetAction::Due => {
                         let mut is_to_set = false;
+                        let mut origin_due = None;
 
                         let cur_list_opt = self.todolist.current_todolist.clone();
                         if let Some(cur_list) = cur_list_opt {
                             let cur_task_opt = &cur_list.borrow().current_task;
-                            if cur_task_opt.is_some() {
+                            if let Some(cur_task) = cur_task_opt {
                                 is_to_set = true;
+                                origin_due = cur_task.borrow().due;
                             }
                         }
                         if is_to_set {
                             let input_rx = self.input_rx.clone();
                             let date_str = self
-                                .get_input(input_rx, terminal, "Set Due Date".to_string())
+                                .input_due_date(
+                                    input_rx,
+                                    terminal,
+                                    "Set Due Date".to_string(),
+                                    origin_due,
+                                )
                                 .await;
                             if let Some(cur_list) = &self.todolist.current_todolist {
                                 let cur_task_opt = &cur_list.borrow().current_task;
