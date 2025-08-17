@@ -530,6 +530,8 @@ impl Ui {
                     }
                     _ => {}
                 }
+            } else {
+                break;
             }
         }
         drop(receiver);
