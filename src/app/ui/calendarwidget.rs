@@ -1,14 +1,12 @@
 use std::vec;
 
-use chrono::{Datelike, Duration, Local, NaiveDate, Weekday};
+use chrono::{Datelike, Duration, Local, NaiveDate};
 use ratatui::{
-    layout::{Alignment, Constraint, Layout, Rect},
+    layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
     text::{Line, Span},
     widgets::{Block, Clear, Row, Table, Widget},
 };
-
-use crate::app::ui::Ui;
 
 #[derive(Debug)]
 pub struct CalendarWidget {

@@ -1,3 +1,26 @@
+//! User Interface module
+//!
+//! This module contains all the UI components and related functionality for the
+//! terminal-based todo application. It provides a complete TUI (Text User Interface)
+//! implementation using the ratatui library.
+//!
+//! # Components
+//!
+//! The UI is composed of several key components:
+//! - WorkspaceWidget: Displays and manages workspaces
+//! - TodoWidget: Displays and manages tasks within workspaces
+//! - CalendarWidget: Provides date selection functionality
+//! - HelpWidget: Displays help information and keybindings
+//! - PromptWidget: Shows status messages and current mode
+//!
+//! # Architecture
+//!
+//! The UI follows a message-passing architecture where:
+//! 1. User input is captured and converted to UiMessage events
+//! 2. Messages are processed by the handle_uimsg function
+//! 3. UI state is updated accordingly
+//! 4. The display is refreshed to reflect changes
+
 use std::cell::RefCell;
 use std::path::Path;
 use std::rc::Rc;
@@ -5,10 +28,10 @@ use std::sync::{Arc, Mutex};
 use std::vec;
 
 use chrono::{Days, Local, Months, NaiveDate};
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Style, Stylize};
-use ratatui::text::{self, Line, Text};
+use ratatui::text::{Line, Text};
 use ratatui::widgets::{Block, Clear, List, ListState, Padding, Paragraph};
 use ratatui::{
     DefaultTerminal, Frame,
@@ -22,123 +45,287 @@ use crate::app::appstate::{AppState, CurrentFocus, CurrentMode};
 use crate::app::data::{self, Datas};
 use crate::app::ui::calendarwidget::CalendarWidget;
 use crate::app::ui::helpwidget::HelpWidget;
+use crate::app::ui::prompt::PromptWidget;
 use crate::app::ui::todolistwidget::{Task, TaskStatus, TodoList, TodoWidget};
 use crate::app::ui::workspacewidget::Workspace;
 
 pub mod calendarwidget;
 pub mod helpwidget;
 pub mod keymap;
+pub mod prompt;
 pub mod todolistwidget;
 pub mod workspacewidget;
 use workspacewidget::WorkspaceWidget;
 
-/// UiMessage to perform actions
+/// UI Message for coordinating actions in the user interface
+///
+/// This enum represents all possible messages that can be sent to the UI
+/// for processing. These messages drive the UI behavior and state changes
+/// in response to user input and application events.
+///
+/// Messages are processed by the UI message handler and result in UI updates,
+/// state changes, or interactions with other application components.
+///
+/// # Message Processing Flow
+///
+/// 1. User input is captured by the event handler
+/// 2. Input is converted to appropriate UiMessage variants
+/// 3. Messages are sent through a channel to the UI handler
+/// 4. UI handler processes messages and updates UI state
+/// 5. UI is re-rendered to reflect changes
 ///
 /// # Variants
 ///
-/// - `Update` - update the data
-/// - `UpdateUi` - update the ui
-/// - `WAction(WidgetAction)` - the action of the widget
+/// - `Update` - Request to update application data
+/// - `UpdateUi` - Request to refresh/redraw the UI
+/// - `SaveData` - Request to save application data to file
+/// - `WAction(WidgetAction)` - Widget-specific action to perform
+///
+/// # Examples
+///
+/// ```
+/// use crate::app::ui::{UiMessage, WidgetAction};
+/// use crate::app::ui::todolistwidget::TaskStatus;
+/// use crate::app::appstate::CurrentFocus;
+///
+/// // Example messages
+/// let update_msg = UiMessage::Update;
+/// let update_ui_msg = UiMessage::UpdateUi;
+/// let save_msg = UiMessage::SaveData;
+/// let widget_action_msg = UiMessage::WAction(WidgetAction::AddWorkspace);
+/// ```
 #[derive(Debug)]
 pub enum UiMessage {
+    /// Request to update application data
     Update,
+    /// Request to refresh/redraw the UI
     UpdateUi,
+    /// Request to save application data to file
     SaveData,
+    /// Widget-specific action to perform
     WAction(WidgetAction),
 }
 
-/// WidgetAction to change the widget state
+/// Widget Action for changing widget states and performing operations
+///
+/// This enum represents specific actions that can be performed on UI widgets.
+/// These actions correspond to user interactions like adding items, navigating,
+/// deleting items, and changing states.
+///
+/// Widget actions are typically wrapped in UiMessage::WAction and processed
+/// by the UI message handler to modify widget states and trigger UI updates.
+///
+/// # Action Categories
+///
+/// Widget actions can be grouped into several categories:
+/// 1. Addition actions (AddWorkspace, AddTask, etc.)
+/// 2. Navigation actions (SelectUp, SelectDown)
+/// 3. Focus management (FocusWorkspace, etc.)
+/// 4. Workspace navigation (EnterWorkspace, etc.)
+/// 5. Deletion actions (DeleteWorkspace, DeleteTask)
+/// 6. Task status changes (MarkTaskStatus)
+/// 7. Workspace management (ArchiveWS, RecoveryWS)
+/// 8. Item management (Rename, Filter)
+/// 9. Help system (Help, ExitHelp)
+/// 10. Date management (Due)
+///
+/// # Examples
+///
+/// ```
+/// use crate::app::ui::WidgetAction;
+/// use crate::app::ui::todolistwidget::TaskStatus;
+/// use crate::app::appstate::CurrentFocus;
+///
+/// // Example widget actions
+/// let add_workspace = WidgetAction::AddWorkspace;
+/// let delete_task = WidgetAction::DeleteTask;
+/// let mark_complete = WidgetAction::MarkTaskStatus(TaskStatus::Finished);
+/// let rename = WidgetAction::Rename(CurrentFocus::Workspace);
+/// ```
 #[derive(Debug)]
 pub enum WidgetAction {
+    /// Add a new workspace at the root level
     AddWorkspace,
+    /// Add a child workspace to the current workspace
     AddWorkspaceChild,
+    /// Add a new task to the current todo list
     AddTask,
+    /// Add a child task to the current task
     AddTaskChild,
 
+    /// Move selection up in the current widget
     SelectUp,
+    /// Move selection down in the current widget
     SelectDown,
 
+    /// Focus on the main workspace widget
     FocusWorkspace,
+    /// Focus on the todo list widget
     FocusTodolist,
+    /// Focus on the archived workspace widget
     FocusArchivedWorkspace,
 
+    /// Enter a workspace to view its tasks
     EnterWorkspace,
+    /// Enter an archived workspace to view its tasks
     EnterArchivedWorkspace,
 
+    /// Delete the currently selected workspace
     DeleteWorkspace,
+    /// Delete the currently selected archived workspace
     DeleteArchivedWorkspace,
+    /// Delete the currently selected task
     DeleteTask,
 
+    /// Mark the current task with a specific status
     MarkTaskStatus(TaskStatus),
+    /// Archive the current workspace
     ArchiveWS,
+    /// Recover an archived workspace
     RecoveryWS,
+    /// Rename the currently focused item
     Rename(CurrentFocus),
+    /// Filter/search tasks
     Filter,
+    /// Exit filter/search mode
     ExitFilter,
 
+    /// Show the help screen
     Help,
+    /// Exit the help screen
     ExitHelp,
+    /// Set due date for the current task
     Due,
 }
 
-/// The select direction, whether to go back or forward
+/// Selection direction for navigating lists
+///
+/// This enum is used to specify the direction of selection movement
+/// when navigating through lists in the UI components.
+///
+/// # Variants
+///
+/// - `Back` - Move selection backward (up/left)
+/// - `Forward` - Move selection forward (down/right)
+///
+/// # Examples
+///
+/// ```
+/// use crate::app::ui::SelectBF;
+///
+/// // Example usage in a selection function
+/// fn move_selection(direction: SelectBF) {
+///     match direction {
+///         SelectBF::Back => println!("Moving backward"),
+///         SelectBF::Forward => println!("Moving forward"),
+///     }
+/// }
+/// ```
 #[derive(Debug)]
 pub enum SelectBF {
+    /// Move selection backward (up/left)
     Back,
+    /// Move selection forward (down/right)
     Forward,
 }
 
-/// the input event to define the input action
-#[derive(Debug)]
-pub enum InputEvent {
-    InsertChar(char),
-    Backspace,
-    Left,
-    Right,
-    Enter,
-    Esc,
-}
-
+/// Search navigation events for filter operations
+///
+/// This enum represents the different navigation actions that can occur
+/// during search/filter operations in the UI.
+///
+/// # Variants
+///
+/// - `Next` - Move to the next search result
+/// - `Previous` - Move to the previous search result
+/// - `Exit` - Exit the search mode
+///
+/// # Examples
+///
+/// ```
+/// use crate::app::ui::SearchEvent;
+///
+/// // Example usage in a search handler
+/// fn handle_search_event(event: SearchEvent) {
+///     match event {
+///         SearchEvent::Next => println!("Next search result"),
+///         SearchEvent::Previous => println!("Previous search result"),
+///         SearchEvent::Exit => println!("Exit search mode"),
+///     }
+/// }
+/// ```
 #[derive(Debug)]
 pub enum SearchEvent {
+    /// Move to the next search result
     Next,
+    /// Move to the previous search result
     Previous,
+    /// Exit the search mode
     Exit,
 }
 
 /// The Basic Structure of the UI
 ///
+/// This struct represents the main UI component that orchestrates all the
+/// individual widgets and manages their interactions. It handles rendering,
+/// user input processing, and message handling for the entire application UI.
+///
 /// # Fields
 ///
-/// - `workspace` ([`WorkspaceWidget`]) - a widget to display the workspace
-/// - `todolist` ([`TodoWidget`]) - a widget to display the todo list
-/// - `ui_rx` (`mpsc`) - a mpsc receiver to receive [`UiMessage`]
-/// - `input_rx` (`Arc<Mutex<mpsc::Receiver<InputEvent>>>`) - a mpsc receiver to receive [`InputEvent`]
+/// - `workspace` ([`WorkspaceWidget`]) - The main workspace widget for displaying active workspaces
+/// - `todolist` ([`TodoWidget`]) - The todo list widget for displaying tasks
+/// - `archived_ws` ([`WorkspaceWidget`]) - The archived workspace widget for displaying archived workspaces
+/// - `helpwidget` ([`HelpWidget`]) - The help widget for displaying keybindings and help information
+/// - `prompt` ([`PromptWidget`]) - The prompt widget for displaying status messages
+/// - `ui_rx` (`mpsc::Receiver<UiMessage>`) - Receiver for UI messages to process
+/// - `input_rx` (`Arc<Mutex<mpsc::Receiver<KeyEvent>>>`) - Receiver for keyboard input events
+///
+/// # Examples
+///
+/// ```
+/// use tokio::sync::mpsc;
+/// use crossterm::event::KeyEvent;
+/// use crate::app::ui::{Ui, UiMessage};
+///
+/// // Create channels for communication
+/// let (ui_tx, ui_rx) = mpsc::channel(100);
+/// let (input_tx, input_rx) = mpsc::channel(100);
+///
+/// // Create a new UI instance
+/// let ui = Ui::new(ui_rx, input_rx);
+/// ```
 #[derive(Debug)]
 pub struct Ui {
+    /// The main workspace widget for displaying active workspaces
     pub workspace: WorkspaceWidget,
+    /// The todo list widget for displaying tasks
     pub todolist: TodoWidget,
+    /// The archived workspace widget for displaying archived workspaces
     pub archived_ws: WorkspaceWidget,
-    // pub keymap: KeymapWidget,
+    /// The help widget for displaying keybindings and help information
     pub helpwidget: HelpWidget,
+    /// The prompt widget for displaying status messages
+    pub prompt: PromptWidget,
+    /// Receiver for UI messages to process
     pub ui_rx: mpsc::Receiver<UiMessage>,
+    /// Receiver for keyboard input events
     pub input_rx: Arc<Mutex<mpsc::Receiver<KeyEvent>>>,
 }
 
 pub trait SelectAction<T> {
-    /// a function to select an item, which is used to change the current target of [`T`]
-    /// inorder to make it consistent with what you selected in the application
+    /// Select an item in a list, changing the current target to maintain consistency
+    /// with the user's selection in the application.
+    ///
+    /// This function is used to navigate through lists of items (such as workspaces or tasks)
+    /// and update the currently selected item based on the direction of movement.
     ///
     /// # Arguments
     ///
-    /// - `current_target` (`&Option<Rc<RefCell<T>>>`) - what you are currently selecting
-    /// - `targets` (`&Vec<Rc<RefCell<T>>>`) - from which list to change the selection
-    /// - `state` (`&mut ListState`) - a [`ListState`] of [`List`] to show the selection in the ui
-    /// - `bf` (`SelectBF`) - a [`SelectBF`] enum determines whether to select backward or forward
+    /// - `bf` (`SelectBF`) - A [`SelectBF`] enum that determines whether to select backward or forward
     ///
     /// # Returns
     ///
-    /// - `Option<Rc<RefCell<T>>>` - the result of the next selection
+    /// - `Option<Rc<RefCell<T>>>` - The result of the next selection, or None if no selection is possible
     fn get_selected_bf(
         &mut self,
         // current_target: &Option<Rc<RefCell<T>>>,
@@ -146,15 +333,19 @@ pub trait SelectAction<T> {
         // state: &mut ListState,
         bf: SelectBF,
     ) -> Option<Rc<RefCell<T>>>;
-    /// Get the flattened vector of T from the vector of [`T`] which might have nested [`T`] (children)
+
+    /// Get a flattened vector of T from a vector of [`T`] which might have nested [`T`] (children).
+    ///
+    /// This function recursively traverses a hierarchical structure of items (such as nested workspaces
+    /// or tasks with subtasks) and returns a flat list of all items.
     ///
     /// # Arguments
     ///
-    /// - `target` (`&Vec<Rc<RefCell<T>>>`) - target to be get flattened
+    /// - `target` (`&Vec<Rc<RefCell<T>>>`) - The target vector to be flattened
     ///
     /// # Returns
     ///
-    /// - `Vec<Rc<RefCell<T>>>` - the flattened vector of the target
+    /// - `Vec<Rc<RefCell<T>>>` - The flattened vector containing all items from the hierarchy
     fn get_flattened(target: &Vec<Rc<RefCell<T>>>) -> Vec<Rc<RefCell<T>>>;
 }
 
@@ -165,6 +356,7 @@ impl Ui {
             todolist: TodoWidget::new(),
             archived_ws: WorkspaceWidget::new(workspacewidget::WorkspaceType::Archived),
             helpwidget: HelpWidget::new(),
+            prompt: PromptWidget::new(),
             ui_rx,
             input_rx: Arc::new(Mutex::new(input_rx)),
         }
@@ -176,11 +368,17 @@ impl Ui {
             .split(layout[0]);
         let ws_layout = Layout::vertical([Constraint::Percentage(80), Constraint::Percentage(20)])
             .split(layouts[0]);
+        let utils_layout = Layout::horizontal([
+            Constraint::Fill(1),
+            Constraint::Length(self.prompt.desc.len() as u16 + 2),
+        ])
+        .split(layout[1]);
 
         f.render_widget(&mut self.workspace, ws_layout[0]);
         f.render_widget(&mut self.archived_ws, ws_layout[1]);
         f.render_widget(&mut self.todolist, layouts[1]);
-        f.render_widget(&mut self.helpwidget.keymap, layout[1]);
+        f.render_widget(&mut self.helpwidget.keymap, utils_layout[0]);
+        f.render_widget(&mut self.prompt, utils_layout[1]);
         if let CurrentMode::Help = self.helpwidget.keymap.mode {
             f.render_widget(&mut self.helpwidget, f.area());
         }
@@ -205,6 +403,10 @@ impl Ui {
         let mut calendar = CalendarWidget::new();
         loop {
             let _ = terminal.draw(|f| {
+                self.prompt.desc = "In Insert Mode !".to_string();
+                if render_calendar {
+                    self.prompt.desc = "In Calendar Selection !".to_string();
+                }
                 self.update(f);
                 // let area = Ui::get_popup_window_center(50, 20, f);
                 let area = Ui::get_add_item_window(f);
@@ -638,6 +840,8 @@ impl Ui {
                     };
 
                     let _ = data::save_data(path.as_path(), &datas);
+                    self.prompt.desc = "Data Saved !".to_string();
+                    let _ = terminal.draw(|f| self.update(f));
                 }
                 UiMessage::WAction(waction) => match waction {
                     WidgetAction::FocusWorkspace => {
@@ -673,6 +877,7 @@ impl Ui {
                             self.todolist
                                 .add_list(Rc::new(RefCell::new(TodoList::new(ws_id))));
                         }
+                        self.prompt.desc = "Workspace Added !".to_string();
                         let _ = terminal.draw(|f| {
                             self.update(f);
                         });
@@ -691,6 +896,7 @@ impl Ui {
                             self.todolist
                                 .add_list(Rc::new(RefCell::new(TodoList::new(ws_id))));
                         }
+                        self.prompt.desc = "Workspace Added !".to_string();
                         let _ = terminal.draw(|f| {
                             self.update(f);
                         });
@@ -702,12 +908,25 @@ impl Ui {
                         let result = self
                             .get_input(input_rx, terminal, "Add Task".to_string())
                             .await;
-                        if !result.is_empty()
-                            && let Some(ctl) = &self.todolist.current_todolist
-                        {
-                            let mut ctl_mut = ctl.borrow_mut();
-                            ctl_mut.add_task(Rc::new(RefCell::new(Task::new(result, None))));
+                        if !result.is_empty() {
+                            if let Some(ctl) = &self.todolist.current_todolist {
+                                let mut ctl_mut = ctl.borrow_mut();
+                                ctl_mut.add_task(Rc::new(RefCell::new(Task::new(result, None))));
+                            } else {
+                                let ws =
+                                    Rc::new(RefCell::new(Workspace::new("Workspace".to_string())));
+                                let ws_id = ws.borrow().id;
+                                let todolist = Rc::new(RefCell::new(TodoList::new(ws_id)));
+                                todolist
+                                    .borrow_mut()
+                                    .add_task(Rc::new(RefCell::new(Task::new(result, None))));
+                                self.workspace.add_workspace(ws.clone());
+                                self.todolist.add_list(todolist.clone());
+                                self.workspace.current_workspace = Some(ws);
+                                self.todolist.current_todolist = Some(todolist);
+                            }
                         }
+                        self.prompt.desc = "Task Added !".to_string();
                         let _ = terminal.draw(|f| {
                             self.update(f);
                         });
@@ -725,6 +944,7 @@ impl Ui {
                             let mut ctl_mut = ctl.borrow_mut();
                             ctl_mut.add_child_task(Rc::new(RefCell::new(Task::new(result, None))));
                         }
+                        self.prompt.desc = "Task Added !".to_string();
                         let _ = terminal.draw(|f| {
                             self.update(f);
                         });
@@ -896,6 +1116,7 @@ impl Ui {
                                 }
                             }
                         }
+                        self.prompt.desc = "Workspace Deleted !".to_string();
                         let _ = terminal.draw(|f| self.update(f));
                         let mut apps = appstate.lock().unwrap();
                         apps.current_mode = CurrentMode::Normal;
@@ -936,6 +1157,7 @@ impl Ui {
                                 }
                             }
                         }
+                        self.prompt.desc = "Workspace Deleted !".to_string();
                         let _ = terminal.draw(|f| self.update(f));
                         let mut apps = appstate.lock().unwrap();
                         apps.current_mode = CurrentMode::Normal;
@@ -976,6 +1198,7 @@ impl Ui {
                                 }
                             }
                         }
+                        self.prompt.desc = "Task Deleted !".to_string();
                         let _ = terminal.draw(|f| self.update(f));
                         let mut apps = appstate.lock().unwrap();
                         apps.current_mode = CurrentMode::Normal;
@@ -1073,6 +1296,7 @@ impl Ui {
                                 }
                             }
                         }
+                        self.prompt.desc = "In Search Mode !".to_string();
                         let _ = terminal.draw(|f| {
                             self.update(f);
                         });
@@ -1115,12 +1339,14 @@ impl Ui {
                     }
                     WidgetAction::Help => {
                         self.helpwidget.keymap.mode = CurrentMode::Help;
+                        self.prompt.desc = "In Help Mode !".to_string();
                         let _ = terminal.draw(|f| {
                             self.update(f);
                         });
                     }
                     WidgetAction::ExitHelp => {
                         self.helpwidget.keymap.mode = CurrentMode::Normal;
+                        self.prompt.desc = "In Normal Mode !".to_string();
                         let _ = terminal.draw(|f| {
                             self.update(f);
                         });
@@ -1187,7 +1413,6 @@ impl Ui {
                                             } else if let Some(caped) =
                                                 month_re.captures_at(date_str.as_str(), 0)
                                             {
-                                                println!("{} month", &caped[1]);
                                                 let date = Local::now()
                                                     .checked_add_months(Months::new(
                                                         caped[1].parse().unwrap_or_default(),
@@ -1214,6 +1439,7 @@ impl Ui {
                                 }
                             }
                         }
+                        self.prompt.desc = "Set Due Date !".to_string();
                         let _ = terminal.draw(|f| {
                             self.update(f);
                         });

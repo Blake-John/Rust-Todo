@@ -63,6 +63,7 @@ impl Default for KeymapWidget {
                 Keymap::new("esc", "exit current mode", "exit search or help"),
                 Keymap::new("q", "quit", "quit the application"),
                 Keymap::new("ctrl-s", "save", "save the data"),
+                Keymap::new("1/2/3", "focus", "focus target part"),
             ],
             workspace_hint: vec![
                 Keymap::new("a", "add", "add new workspace"),

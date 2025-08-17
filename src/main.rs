@@ -1,3 +1,5 @@
+//! A Tui Todo Application Based on Ratatui
+
 pub mod app;
 
 pub fn main() {

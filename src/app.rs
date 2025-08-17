@@ -1,15 +1,48 @@
+//! # Rust Todo Application
+//!
+//! A terminal-based todo application with workspace management, task tracking, and UI components.
+//!
+//! ## Overview
+//!
+//! This application provides a terminal user interface for managing tasks and workspaces. It features:
+//! - Workspace management (create, delete, archive, rename)
+//! - Task management with status tracking (todo, in-progress, completed, deprecated)
+//! - Due date tracking with calendar integration
+//! - Nested task and workspace support
+//! - Search and filter capabilities
+//! - Data persistence using JSON files
+//!
+//! ## Architecture
+//!
+//! The application follows a message-passing architecture with separate threads for:
+//! - UI rendering
+//! - Key event handling
+//! - Message processing
+//!
+//! ## Usage
+//!
+//! ```rust
+//! use crate::app::App;
+//!
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let app = App::new();
+//!     app.run()?;
+//!     Ok(())
+//! }
+//! ```
+
 use std::{
     path::Path,
     sync::{Arc, Mutex},
 };
 use tokio::sync::mpsc;
 
-use crossterm::event::{self, Event, KeyEvent, KeyModifiers};
+use crossterm::event::{self, KeyEvent, KeyModifiers};
 
 use crate::app::{
     appstate::{AppState, CurrentFocus, CurrentMode, Message},
     data::Datas,
-    ui::{InputEvent, SearchEvent, UiMessage, WidgetAction, todolistwidget::TaskStatus},
+    ui::{SearchEvent, UiMessage, WidgetAction, todolistwidget::TaskStatus},
 };
 
 pub mod appstate;
@@ -167,7 +200,7 @@ impl Default for App {
 /// # Arguments
 ///
 /// - `tx` (`mpsc`) - a mpsc to send [`Message`] to the message handler
-/// - `input_tx` (`mpsc`) - a mpsc sender to send [`InputEvent`] to the ui module for input handling
+/// - `input_tx` (`mpsc`) - a mpsc sender to send [`KeyEvent`] to the ui module for input handling
 /// - `appstate` (`Arc<Mutex<AppState>>`) - the state of the app
 ///
 /// # Examples
@@ -310,27 +343,6 @@ async fn handle_keyevt(
                     CurrentMode::Insert => {
                         let _ = input_tx.send(key_evt).await;
                     }
-                    // match key_evt.code {
-                    //     event::KeyCode::Char(c) => {
-                    //         let _ = input_tx.send(InputEvent::InsertChar(c)).await;
-                    //     }
-                    //     event::KeyCode::Backspace => {
-                    //         let _ = input_tx.send(InputEvent::Backspace).await;
-                    //     }
-                    //     event::KeyCode::Esc => {
-                    //         let _ = input_tx.send(InputEvent::Esc).await;
-                    //     }
-                    //     event::KeyCode::Enter => {
-                    //         let _ = input_tx.send(InputEvent::Enter).await;
-                    //     }
-                    //     event::KeyCode::Left => {
-                    //         let _ = input_tx.send(InputEvent::Left).await;
-                    //     }
-                    //     event::KeyCode::Right => {
-                    //         let _ = input_tx.send(InputEvent::Right).await;
-                    //     }
-                    //     _ => {}
-                    // },
                     CurrentMode::Help => match key_evt.code {
                         event::KeyCode::Char('j') | event::KeyCode::Down => {
                             let _ = tx.send(Message::MoveDown).await;
