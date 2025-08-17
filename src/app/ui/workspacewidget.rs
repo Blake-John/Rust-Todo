@@ -269,8 +269,16 @@ impl SelectAction<Workspace> for WorkspaceWidget {
         let ws_list = WorkspaceWidget::get_flattened(&self.workspaces);
         if !ws_list.is_empty() {
             if self.current_workspace.is_none() {
-                self.ws_state.select(Some(0));
-                Some(ws_list[0].clone())
+                match bf {
+                    SelectBF::Back => {
+                        self.ws_state.select(Some(ws_list.len() - 1));
+                        Some(ws_list[ws_list.len() - 1].clone())
+                    }
+                    SelectBF::Forward => {
+                        self.ws_state.select(Some(0));
+                        Some(ws_list[0].clone())
+                    }
+                }
             } else {
                 let mut target = 0;
 
@@ -284,12 +292,12 @@ impl SelectAction<Workspace> for WorkspaceWidget {
                 }
                 match bf {
                     SelectBF::Back => {
-                        self.ws_state.select_previous();
                         target = target.saturating_sub(1);
+                        self.ws_state.select(Some(target));
                     }
                     SelectBF::Forward => {
-                        self.ws_state.select_next();
                         target = (target + 1).min(ws_list.len() - 1);
+                        self.ws_state.select(Some(target));
                     }
                 }
 
