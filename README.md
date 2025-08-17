@@ -77,7 +77,7 @@ Manage your tasks efficiently with these commands:
 - `d`: Mark task as `Deprecated`
 - `D`: Set due date for task
 
-> **Tip**
+> [!TIP]
 > There are three ways to set a due date:
 >
 > - Use `Ctrl+o` to open the calendar and press `Enter` to select
@@ -95,7 +95,7 @@ Organize your work with workspaces:
 
 The application automatically saves data to `~/.todo/data.json`. This file contains all your workspaces, tasks, and their statuses.
 
-> **Note**
+> [!NOTE]
 > To keep the program small and ensure convenient and manageable data storage, a `.json` file is used to store data, which allows direct modification and management of data (though not strictly necessary).
 
 ## Keybindings Reference
