@@ -587,9 +587,6 @@ async fn handle_msg(
                 let _ = ui_tx.send(UiMessage::WAction(WidgetAction::ExitHelp)).await;
             }
             Message::Due => {
-                let mut app_state = appstate.lock().unwrap();
-                app_state.current_mode = CurrentMode::Insert;
-                drop(app_state);
                 let _ = ui_tx.send(UiMessage::WAction(WidgetAction::Due)).await;
             }
             Message::SaveData => {

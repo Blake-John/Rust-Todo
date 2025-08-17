@@ -1354,6 +1354,10 @@ impl Ui {
                     WidgetAction::Due => {
                         let mut is_to_set = false;
                         let mut origin_due = None;
+                        let mut apps = appstate.lock().unwrap();
+                        let origin_mode = apps.current_mode;
+                        apps.current_mode = CurrentMode::Insert;
+                        drop(apps);
 
                         let cur_list_opt = self.todolist.current_todolist.clone();
                         if let Some(cur_list) = cur_list_opt {
@@ -1439,12 +1443,12 @@ impl Ui {
                                 }
                             }
                         }
+                        let mut apps = appstate.lock().unwrap();
+                        apps.current_mode = origin_mode;
                         self.prompt.desc = "Set Due Date !".to_string();
                         let _ = terminal.draw(|f| {
                             self.update(f);
                         });
-                        let mut apps = appstate.lock().unwrap();
-                        apps.current_mode = CurrentMode::Normal;
                     }
                 },
             }

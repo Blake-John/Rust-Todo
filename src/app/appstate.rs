@@ -197,7 +197,7 @@ pub enum CurrentFocus {
 /// - `Insert` - Text input mode
 /// - `Search` - Search/filter mode
 /// - `Help` - Help screen display mode
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum CurrentMode {
     /// Normal navigation mode where arrow keys move selection
     Normal,
