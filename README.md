@@ -2,6 +2,8 @@
 
 A terminal-based todo application built with Rust and Ratatui, featuring workspace management, task tracking, and a user-friendly interface.
 
+> [中文文档](./README_zh.md)
+
 ## Features
 
 <https://github.com/user-attachments/assets/e2796daa-c7c9-499c-86c0-a8fa1a4ce63a>
@@ -25,7 +27,7 @@ A terminal-based todo application built with Rust and Ratatui, featuring workspa
 1. Clone the repository:
 
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/Blake-John/Rust-Todo.git
    cd rust-todo
    ```
 
@@ -41,10 +43,11 @@ A terminal-based todo application built with Rust and Ratatui, featuring workspa
    cargo run --release
    ```
 
-   Or run the binary directly:
+   Or run the binary in [Release](https://github.com/Blake-John/Rust-Todo/releases) directly:
 
    ```bash
-   todo
+   # on Linux
+   ./todo_x86_64-linux
    ```
 
 ## Usage

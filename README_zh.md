@@ -2,6 +2,8 @@
 
 一个基于终端的待办事项应用程序，使用 Rust 和 Ratatui 构建，具有工作区管理、任务跟踪和用户友好的界面。
 
+> [English README](./README.md)
+
 ## 功能特性
 
 <https://github.com/user-attachments/assets/e2796daa-c7c9-499c-86c0-a8fa1a4ce63a>
@@ -25,7 +27,7 @@
 1. 克隆仓库：
 
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/Blake-John/Rust-Todo.git
    cd rust-todo
    ```
 
@@ -41,10 +43,11 @@
    cargo run --release
    ```
 
-   或直接运行二进制文件：
+   或直接运行 [Release](https://github.com/Blake-John/Rust-Todo/releases) 中的二进制文件：
 
    ```bash
-   todo
+   # on Linux
+   ./todo_x86_64-linux
    ```
 
 ## 使用方法
