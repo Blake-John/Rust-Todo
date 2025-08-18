@@ -528,8 +528,11 @@ impl Ui {
                         });
                         break;
                     }
+
                     _ => {}
                 }
+            } else {
+                break;
             }
         }
         drop(receiver);
