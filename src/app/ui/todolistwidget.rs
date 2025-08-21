@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::app::ui::{SelectAction, SelectBF, workspacewidget::Workspace};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum TaskStatus {
     Todo,
     InProcess,
@@ -55,10 +55,14 @@ impl Task {
     pub fn set_task_status(task: &Rc<RefCell<Task>>, status: TaskStatus) {
         let mut task_mut = task.borrow_mut();
         task_mut.status = status.clone();
-        if !task_mut.children.is_empty() {
+        if !task_mut.children.is_empty()
+            && (status == TaskStatus::Finished || status == TaskStatus::Deprecated)
+        {
+            // if !task_mut.children.is_empty() {
             task_mut.children.iter().for_each(|t| {
                 Task::set_task_status(t, status.clone());
             });
+            // }
         }
     }
 

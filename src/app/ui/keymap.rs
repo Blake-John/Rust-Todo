@@ -84,7 +84,7 @@ impl Default for KeymapWidget {
                 Keymap::new("d", "deprecate", "mark the task as deprecated"),
                 Keymap::new("D", "due", "set the due date of current task"),
                 Keymap::new("r", "rename", "rename the current task"),
-                //TODO: Implement sort functionality
+                // TODO: Implement sort functionality
                 Keymap::new("s", "sort", "sort the current task by rule (in dev)"),
                 Keymap::new("f /", "filter", "search tasks in current workspace"),
                 Keymap::new("+/=", "increase", "increase the urgency"),
