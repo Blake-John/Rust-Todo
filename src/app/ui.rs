@@ -196,6 +196,12 @@ pub enum WidgetAction {
     ExitHelp,
     /// Set due date for the current task
     Due,
+
+    /// Increse task urgency
+    IncreseUrgency,
+
+    /// Decrese task urgency
+    DecreseUrgency,
 }
 
 /// Selection direction for navigating lists
@@ -665,7 +671,7 @@ impl Ui {
                 let task_list = TodoWidget::get_search_list_item(
                     search_string.join(" "),
                     &tar_list,
-                    1,
+                    0,
                     max_desc_len,
                 );
                 let tar_list_widget = List::new(task_list).block(tar_list_block);
@@ -1446,6 +1452,30 @@ impl Ui {
                         let mut apps = appstate.lock().unwrap();
                         apps.current_mode = origin_mode;
                         self.prompt.desc = "Set Due Date !".to_string();
+                        let _ = terminal.draw(|f| {
+                            self.update(f);
+                        });
+                    }
+                    WidgetAction::IncreseUrgency => {
+                        if let Some(cur_list) = &self.todolist.current_todolist {
+                            let cur_list_bor = cur_list.borrow();
+                            if let Some(cur_task) = &cur_list_bor.current_task {
+                                let mut cur_task_mut = cur_task.borrow_mut();
+                                cur_task_mut.increase_urgency();
+                            }
+                        }
+                        let _ = terminal.draw(|f| {
+                            self.update(f);
+                        });
+                    }
+                    WidgetAction::DecreseUrgency => {
+                        if let Some(cur_list) = &self.todolist.current_todolist {
+                            let cur_list_bor = cur_list.borrow();
+                            if let Some(cur_task) = &cur_list_bor.current_task {
+                                let mut cur_task_mut = cur_task.borrow_mut();
+                                cur_task_mut.decrease_urgency();
+                            }
+                        }
                         let _ = terminal.draw(|f| {
                             self.update(f);
                         });

@@ -87,6 +87,8 @@ impl Default for KeymapWidget {
                 //TODO: Implement sort functionality
                 Keymap::new("s", "sort", "sort the current task by rule (in dev)"),
                 Keymap::new("f /", "filter", "search tasks in current workspace"),
+                Keymap::new("+/=", "increase", "increase the urgency"),
+                Keymap::new("-/_", "decrease", "decrease the urgency"),
                 Keymap::new("ctrl-s", "save", "save the data"),
                 Keymap::new("?", "help", "open the help page"),
             ],

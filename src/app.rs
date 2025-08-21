@@ -338,6 +338,12 @@ async fn handle_keyevt(
                         event::KeyCode::Char('?') => {
                             let _ = tx.send(Message::Help).await;
                         }
+                        event::KeyCode::Char('+') | event::KeyCode::Char('=') => {
+                            let _ = tx.send(Message::IncreseUrgency).await;
+                        }
+                        event::KeyCode::Char('-') | event::KeyCode::Char('_') => {
+                            let _ = tx.send(Message::DecreseUrgency).await;
+                        }
                         _ => {}
                     },
                     CurrentMode::Insert => {
@@ -591,6 +597,16 @@ async fn handle_msg(
             }
             Message::SaveData => {
                 let _ = ui_tx.send(UiMessage::SaveData).await;
+            }
+            Message::IncreseUrgency => {
+                let _ = ui_tx
+                    .send(UiMessage::WAction(WidgetAction::IncreseUrgency))
+                    .await;
+            }
+            Message::DecreseUrgency => {
+                let _ = ui_tx
+                    .send(UiMessage::WAction(WidgetAction::DecreseUrgency))
+                    .await;
             }
         }
     }

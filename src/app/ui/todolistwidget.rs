@@ -83,6 +83,33 @@ impl Task {
         }
         result
     }
+
+    pub fn increase_urgency(&mut self) {
+        if let Some(urgency) = &mut self.urgency {
+            match urgency {
+                Urgency::Common => {
+                    *urgency = Urgency::Important;
+                }
+                Urgency::Important => {
+                    *urgency = Urgency::Critical;
+                }
+                Urgency::Critical => {}
+            }
+        } else {
+            self.urgency = Some(Urgency::Common);
+        }
+    }
+
+    pub fn decrease_urgency(&mut self) {
+        let ug = self.urgency.clone();
+        if let Some(urgency) = ug {
+            match urgency {
+                Urgency::Common => self.urgency = None,
+                Urgency::Important => self.urgency = Some(Urgency::Common),
+                Urgency::Critical => self.urgency = Some(Urgency::Important),
+            }
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -214,6 +241,16 @@ impl TodoWidget {
                 TaskStatus::Finished => "✓".green(),
                 TaskStatus::Deprecated => "".red(),
             };
+            let urgency = if let Some(urgen) = &task.urgency {
+                match urgen {
+                    Urgency::Common => format!(" {:1} ", "󰌶").light_green(),
+                    Urgency::Important => format!(" {:1} ", "󰋽").light_blue(),
+                    Urgency::Critical => format!(" {:1} ", "󰀪").light_red(),
+                }
+            } else {
+                "   ".into()
+            };
+
             let mut due_span = Span::raw("");
             if let Some(due) = item.borrow().due {
                 let delta = due - Local::now().date_naive();
@@ -247,6 +284,7 @@ impl TodoWidget {
             let padding_len = max_desc_len - desc.len() - dep * 2 + 1;
             let it = ListItem::new(Line::from(vec![
                 prefix,
+                urgency,
                 "  ".repeat(dep).into(),
                 //     .set_style(match &task.status {
                 //     // TaskStatus::Finished => Style::new()
@@ -297,7 +335,18 @@ impl TodoWidget {
                 TaskStatus::Finished => "✓".green(),
                 TaskStatus::Deprecated => "".red(),
             };
-            let mut contents = vec![prefix, "  ".repeat(dep).into()];
+
+            let urgency = if let Some(urgen) = &task.urgency {
+                match urgen {
+                    Urgency::Common => format!(" {:1} ", "󰌶").light_green(),
+                    Urgency::Important => format!(" {:1} ", "󰋽").light_blue(),
+                    Urgency::Critical => format!(" {:1} ", "󰀪").light_red(),
+                }
+            } else {
+                "   ".into()
+            };
+
+            let mut contents = vec![prefix, urgency, "  ".repeat(dep).into()];
 
             let mut due_span = Span::raw("");
             if let Some(due) = item.borrow().due {
@@ -509,7 +558,7 @@ impl Widget for &mut TodoWidget {
             if self.search_string.is_empty() {
                 let tasks = todolist.borrow().tasks.to_owned();
                 let max_desc_len = TodoWidget::find_max_tasks_len(&tasks, 1);
-                let task_list = TodoWidget::get_task_list_item(&tasks, 1, max_desc_len);
+                let task_list = TodoWidget::get_task_list_item(&tasks, 0, max_desc_len);
                 let listwidget =
                     List::new(task_list)
                         .block(block)
@@ -533,7 +582,7 @@ impl Widget for &mut TodoWidget {
                 let task_list = TodoWidget::get_search_list_item(
                     self.search_string.clone(),
                     &tar_list,
-                    1,
+                    0,
                     max_desc_len,
                 );
                 let listwidget =

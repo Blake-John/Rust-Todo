@@ -129,6 +129,8 @@ The application automatically saves data to `~/.todo/data.json`. This file conta
 | `c` | Completed |
 | `d` | Deprecated |
 | `D` | Set Due Date |
+| `+/=` | Increase Urgency |
+| `-/_` | Decrease Urgency |
 
 ### Workspace Keys
 
@@ -139,7 +141,7 @@ The application automatically saves data to `~/.todo/data.json`. This file conta
 
 ## To-Do
 
-- [ ] Implement **urgency level** setting
+- [x] Implement **urgency level** setting
 - [ ] Implement **sorting methods** to change task sorting, or sort by **urgency level**, **remaining time**
 - [ ] Consider using a **database** for data storage
 

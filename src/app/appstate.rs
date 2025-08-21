@@ -163,6 +163,12 @@ pub enum Message {
     Due,
     /// Save application data to file
     SaveData,
+
+    /// Increse task urgency
+    IncreseUrgency,
+
+    /// Decrese task urgency
+    DecreseUrgency,
 }
 
 /// State of which component is currently focused
