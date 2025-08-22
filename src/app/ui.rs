@@ -199,9 +199,11 @@ pub enum WidgetAction {
 
     /// Increse task urgency
     IncreseUrgency,
-
     /// Decrese task urgency
     DecreseUrgency,
+
+    /// Sort the task
+    Sort,
 }
 
 /// Selection direction for navigating lists
@@ -1476,6 +1478,57 @@ impl Ui {
                                 cur_task_mut.decrease_urgency();
                             }
                         }
+                        let _ = terminal.draw(|f| {
+                            self.update(f);
+                        });
+                    }
+                    WidgetAction::Sort => {
+                        let mut apps = appstate.lock().unwrap();
+                        let origin_mode = apps.current_mode;
+                        apps.current_mode = CurrentMode::Sort;
+                        let input_rx_arc = self.input_rx.clone();
+                        let mut input_rx = input_rx_arc.lock().unwrap();
+                        let mut sort_method = "".to_string();
+                        loop {
+                            let _ = terminal.draw(|f| {
+                                self.update(f);
+                            });
+                            if let Some(key_evt) = input_rx.recv().await {
+                                if sort_method.is_empty() {
+                                    match key_evt.code {
+                                        KeyCode::Char('d') => {
+                                            sort_method += "d";
+                                        }
+                                        KeyCode::Char('u') => {
+                                            sort_method += "u";
+                                        }
+                                        _ => {
+                                            break;
+                                        }
+                                    }
+                                } else {
+                                    match key_evt.code {
+                                        KeyCode::Char('a') => {
+                                            sort_method += "a";
+                                        }
+                                        KeyCode::Char('d') => {
+                                            sort_method += "d";
+                                        }
+                                        _ => {
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        match sort_method.as_str() {
+                            "da" => {}
+                            "dd" => {}
+                            "ua" => {}
+                            "ud" => {}
+                            _ => {}
+                        }
+                        apps.current_mode = origin_mode;
                         let _ = terminal.draw(|f| {
                             self.update(f);
                         });

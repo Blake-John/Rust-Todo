@@ -33,6 +33,7 @@ pub struct KeymapWidget {
     pub workspace_hint: Vec<Keymap>,
     pub tasklist_hint: Vec<Keymap>,
     pub archived_ws_hint: Vec<Keymap>,
+    pub sort_hint: Vec<Keymap>,
 }
 
 impl KeymapWidget {
@@ -99,6 +100,12 @@ impl Default for KeymapWidget {
                 Keymap::new("ctrl-s", "save", "save the data"),
                 Keymap::new("?", "help", "open the help page"),
             ],
+            sort_hint: vec![
+                Keymap::new("da", "due ascent", "by due date ascent"),
+                Keymap::new("dd", "due descent", "by due date descent"),
+                Keymap::new("ur", "urgency ascent", "by urgency ascent"),
+                Keymap::new("ud", "urgency descent", "by urgency descent"),
+            ],
         }
     }
 }
@@ -112,6 +119,15 @@ impl Widget for &mut KeymapWidget {
                 hint_span.push(Span::styled(" ".to_string(), Style::new().white()));
                 hint_span.push(Span::styled("<".to_string(), Style::new().white()));
                 hint_span.push(Span::styled(hint.key.clone(), Style::new().light_cyan()));
+                hint_span.push(Span::styled(">".to_string(), Style::new().white()));
+                hint_span.push(Span::styled(hint.desc.clone(), Style::new().white()));
+                hint_span.push(Span::styled(" ".to_string(), Style::new().white()));
+            });
+        } else if let CurrentMode::Sort = &self.mode {
+            self.sort_hint.iter().for_each(|hint| {
+                hint_span.push(Span::styled(" ".to_string(), Style::new().white()));
+                hint_span.push(Span::styled("<".to_string(), Style::new().white()));
+                hint_span.push(Span::styled(hint.key.clone(), Style::new().light_magenta()));
                 hint_span.push(Span::styled(">".to_string(), Style::new().white()));
                 hint_span.push(Span::styled(hint.desc.clone(), Style::new().white()));
                 hint_span.push(Span::styled(" ".to_string(), Style::new().white()));

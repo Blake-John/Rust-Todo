@@ -239,6 +239,9 @@ async fn handle_keyevt(
                         {
                             let _ = tx.send(Message::SaveData).await;
                         }
+                        event::KeyCode::Char('s') => {
+                            let _ = tx.send(Message::Sort).await;
+                        }
                         event::KeyCode::Char('a') => {
                             let _ = tx.send(Message::AddItem).await;
                         }
@@ -346,7 +349,7 @@ async fn handle_keyevt(
                         }
                         _ => {}
                     },
-                    CurrentMode::Insert => {
+                    CurrentMode::Insert | CurrentMode::Sort => {
                         let _ = input_tx.send(key_evt).await;
                     }
                     CurrentMode::Help => match key_evt.code {
@@ -607,6 +610,9 @@ async fn handle_msg(
                 let _ = ui_tx
                     .send(UiMessage::WAction(WidgetAction::DecreseUrgency))
                     .await;
+            }
+            Message::Sort => {
+                let _ = ui_tx.send(UiMessage::WAction(WidgetAction::Sort)).await;
             }
         }
     }

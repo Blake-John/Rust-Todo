@@ -169,6 +169,9 @@ pub enum Message {
 
     /// Decrese task urgency
     DecreseUrgency,
+
+    /// Sort the task
+    Sort,
 }
 
 /// State of which component is currently focused
@@ -213,4 +216,6 @@ pub enum CurrentMode {
     Search,
     /// Help mode for displaying keybindings
     Help,
+    /// Sort mode for displaying keybindings
+    Sort,
 }
