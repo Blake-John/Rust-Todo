@@ -1,6 +1,6 @@
 # Development Tasks
 
-## Current Phase: Sort Mode Implementation
+## Current Phase: Tag System Implementation
 
 Last Updated: 2026-04-28
 
@@ -10,11 +10,11 @@ Last Updated: 2026-04-28
 
 | ID | Task | Status | Priority |
 |----|------|--------|----------|
-| T001 | Sort Mode: Research - Read code (app.rs, ui.rs, keymap.rs, todolistwidget.rs) | COMPLETED | HIGH |
-| T002 | Sort Mode: Implement sort functions (da/dd/ua/ud) | COMPLETED | HIGH |
-| T003 | Sort Mode: Test (build + manual) | COMPLETED | HIGH |
-| T004 | Sort Mode: Code Review | COMPLETED | HIGH |
-| T005 | Sort Mode: Cleanup (remove TODO comments, update docs) | COMPLETED | MEDIUM |
+| T006 | Tag System: Research | IN_PROGRESS | MEDIUM |
+| T007 | Tag System: Design (data model, UI) | PENDING | MEDIUM |
+| T008 | Tag System: Implement (add tags field, UI) | PENDING | MEDIUM |
+| T009 | Tag System: Test | PENDING | MEDIUM |
+| T010 | Tag System: Review | PENDING | MEDIUM |
 
 ---
 

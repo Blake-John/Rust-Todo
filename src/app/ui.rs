@@ -204,6 +204,9 @@ pub enum WidgetAction {
 
     /// Sort the task
     Sort,
+
+    /// Edit tags for the current task
+    EditTags,
 }
 
 /// Selection direction for navigating lists
@@ -1587,6 +1590,61 @@ impl Ui {
                         let mut apps = appstate.lock().unwrap();
                         apps.current_mode = origin_mode;
                         drop(apps);
+                        let _ = terminal.draw(|f| self.update(f));
+                    }
+                    WidgetAction::EditTags => {
+                        if let Some(cur_list) = &self.todolist.current_todolist {
+                            if let Some(cur_task_idx) = cur_list.borrow().state.selected() {
+                                let tasks = TodoWidget::get_flattened(&cur_list.borrow().tasks);
+                                if let Some(cur_task) = tasks.get(cur_task_idx) {
+                                    let task_id = cur_task.borrow().id;
+                                    let existing_tags = cur_task.borrow().tags.clone();
+                                    let existing_tags_str = existing_tags.join(", ");
+                                    
+                                    let mut apps = appstate.lock().unwrap();
+                                    let origin_mode = apps.current_mode;
+                                    apps.current_mode = CurrentMode::Insert;
+                                    drop(apps);
+                                    self.prompt.update_mode(CurrentMode::Insert);
+                                    
+                                    let input_rx_arc = self.input_rx.clone();
+                                    let tags_input = self.input_due_date(
+                                        input_rx_arc,
+                                        &mut terminal,
+                                        "Edit Tags".to_string(),
+                                        None,
+                                    ).await;
+                                    
+                                    // Parse comma-separated tags
+                                    let new_tags: Vec<String> = if tags_input.trim().is_empty() {
+                                        Vec::new()
+                                    } else {
+                                        tags_input
+                                            .split(',')
+                                            .map(|s| s.trim().to_string())
+                                            .filter(|s| !s.is_empty())
+                                            .collect()
+                                    };
+                                    
+                                    // Apply tags to the task
+                                    if let Some(cur_list) = &self.todolist.current_todolist {
+                                        let mut list = cur_list.borrow_mut();
+                                        let tasks = TodoWidget::get_flattened(&list.tasks);
+                                        for task in tasks {
+                                            if task.borrow().id == task_id {
+                                                task.borrow_mut().set_tags(new_tags);
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    
+                                    let mut apps = appstate.lock().unwrap();
+                                    apps.current_mode = origin_mode;
+                                    drop(apps);
+                                    self.prompt.update_mode(origin_mode);
+                                }
+                            }
+                        }
                         let _ = terminal.draw(|f| self.update(f));
                     }
                 },

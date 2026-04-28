@@ -44,6 +44,7 @@ pub struct Task {
     pub children: Vec<Rc<RefCell<Task>>>,
     pub id: Uuid,
     pub urgency: Option<Urgency>,
+    pub tags: Vec<String>,
 }
 
 impl Task {
@@ -56,6 +57,7 @@ impl Task {
             children: Vec::new(),
             id: Uuid::new_v4(),
             urgency: None,
+            tags: Vec::new(),
         }
     }
 
@@ -123,6 +125,24 @@ impl Task {
                 Urgency::Critical => self.urgency = Some(Urgency::Important),
             }
         }
+    }
+
+    pub fn set_tags(&mut self, tags: Vec<String>) {
+        self.tags = tags;
+    }
+
+    pub fn add_tag(&mut self, tag: String) {
+        if !self.tags.contains(&tag) {
+            self.tags.push(tag);
+        }
+    }
+
+    pub fn remove_tag(&mut self, tag: &str) {
+        self.tags.retain(|t| t != tag);
+    }
+
+    pub fn clear_tags(&mut self) {
+        self.tags.clear();
     }
 }
 
@@ -296,28 +316,28 @@ impl TodoWidget {
                 }
             }
             let padding_len = max_desc_len - desc.len() - dep * 2 + 1;
+            
+            // Build tags display
+            let tags_span = if !task.tags.is_empty() {
+                let tags_str = format!(" [{}] ", task.tags.join(", "));
+                tags_str.light_magenta()
+            } else {
+                Span::raw("")
+            };
+            
             let it = ListItem::new(Line::from(vec![
                 prefix,
                 urgency,
                 "  ".repeat(dep).into(),
-                //     .set_style(match &task.status {
-                //     // TaskStatus::Finished => Style::new()
-                //     //     .add_modifier(Modifier::CROSSED_OUT)
-                //     //     .fg(Color::LightGreen),
-                //     TaskStatus::Deprecated => Style::new()
-                //         .add_modifier(Modifier::CROSSED_OUT)
-                //         .fg(Color::Red),
-                //     _ => Style::default(),
-                // }),
                 desc.set_style(match &task.status {
                     TaskStatus::Finished => Style::new()
-                        // .add_modifier(Modifier::CROSSED_OUT)
                         .fg(Color::LightGreen),
                     TaskStatus::Deprecated => Style::new()
                         .add_modifier(Modifier::CROSSED_OUT)
                         .fg(Color::Red),
                     _ => Style::default(),
                 }),
+                tags_span,
                 format!("{:padding_len$}", " ").into(),
                 "    ".into(),
                 due_span,
@@ -393,6 +413,14 @@ impl TodoWidget {
                 }
             }
             let padding_len = max_desc_len - desc.len() - dep * 2 + 1;
+            
+            // Build tags display for search view
+            let tags_span = if !task.tags.is_empty() {
+                let tags_str = format!(" [{}] ", task.tags.join(", "));
+                Span::styled(tags_str, Style::new().fg(Color::Magenta))
+            } else {
+                Span::raw("")
+            };
 
             if !search_string.is_empty() {
                 let search_strings = search_string.split(" ");
@@ -470,6 +498,7 @@ impl TodoWidget {
                 );
             }
             contents.extend(vec![
+                tags_span,
                 format!("{:padding_len$}", " ").into(),
                 "    ".into(),
                 due_span,
