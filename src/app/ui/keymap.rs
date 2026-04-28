@@ -85,8 +85,7 @@ impl Default for KeymapWidget {
                 Keymap::new("d", "deprecate", "mark the task as deprecated"),
                 Keymap::new("D", "due", "set the due date of current task"),
                 Keymap::new("r", "rename", "rename the current task"),
-                // TODO: Implement sort functionality
-                Keymap::new("s", "sort", "sort the current task by rule (in dev)"),
+                Keymap::new("s", "sort", "press to select sort by: da/dd/ua/ud"),
                 Keymap::new("f /", "filter", "search tasks in current workspace"),
                 Keymap::new("+/=", "increase", "increase the urgency"),
                 Keymap::new("-/_", "decrease", "decrease the urgency"),
@@ -101,10 +100,11 @@ impl Default for KeymapWidget {
                 Keymap::new("?", "help", "open the help page"),
             ],
             sort_hint: vec![
-                Keymap::new("da", "due ascent", "by due date ascent"),
-                Keymap::new("dd", "due descent", "by due date descent"),
-                Keymap::new("ur", "urgency ascent", "by urgency ascent"),
-                Keymap::new("ud", "urgency descent", "by urgency descent"),
+                Keymap::new("da", "due asc", "due date earliest first"),
+                Keymap::new("dd", "due desc", "due date latest first"),
+                Keymap::new("ua", "urgency asc", "Common->Important->Critical"),
+                Keymap::new("ud", "urgency desc", "Critical->Important->Common"),
+                Keymap::new("Esc", "exit", "exit sort mode"),
             ],
         }
     }

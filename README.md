@@ -142,8 +142,20 @@ The application automatically saves data to `~/.todo/data.json`. This file conta
 ## To-Do
 
 - [x] Implement **urgency level** setting
-- [ ] Implement **sorting methods** to change task sorting, or sort by **urgency level**, **remaining time**
+- [x] Implement **sorting methods** to change task sorting, or sort by **urgency level**, **remaining time**
 - [ ] Consider using a **database** for data storage
+
+## Sort Mode
+
+Press `s` to enter sort mode, then:
+
+| Key | Action |
+|-----|--------|
+| `da` | Sort by due date (ascending) |
+| `dd` | Sort by due date (descending) |
+| `ua` | Sort by urgency (ascending: Common → Important → Critical) |
+| `ud` | Sort by urgency (descending: Critical → Important → Common) |
+| Esc | Exit sort mode |
 
 ## Contributing
 

@@ -172,6 +172,8 @@ pub enum Message {
 
     /// Sort the task
     Sort,
+    /// Exit sort mode without applying
+    ExitSort,
 }
 
 /// State of which component is currently focused

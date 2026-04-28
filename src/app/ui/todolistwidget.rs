@@ -25,6 +25,16 @@ pub enum Urgency {
     Common,
 }
 
+impl Urgency {
+    pub fn to_order(&self) -> i8 {
+        match self {
+            Urgency::Critical => 2,
+            Urgency::Important => 1,
+            Urgency::Common => 0,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Task {
     pub desc: String,

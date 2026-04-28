@@ -1327,6 +1327,7 @@ impl Ui {
                         let cur_ws_opt = self.workspace.current_workspace.clone();
                         if let Some(cur_ws) = &cur_ws_opt {
                             self.archived_ws.workspaces.push(cur_ws.to_owned());
+                            self.archived_ws.ws_type = workspacewidget::WorkspaceType::Archived;
                             WorkspaceWidget::delete_item(&mut self.workspace.workspaces, cur_ws);
                             self.workspace.current_workspace = None;
                             self.workspace.ws_state.select(None);
@@ -1486,6 +1487,8 @@ impl Ui {
                         let mut apps = appstate.lock().unwrap();
                         let origin_mode = apps.current_mode;
                         apps.current_mode = CurrentMode::Sort;
+                        drop(apps);
+                        self.prompt.update_mode(CurrentMode::Sort);
                         let input_rx_arc = self.input_rx.clone();
                         let mut input_rx = input_rx_arc.lock().unwrap();
                         let mut sort_method = "".to_string();
@@ -1522,16 +1525,69 @@ impl Ui {
                             }
                         }
                         match sort_method.as_str() {
-                            "da" => {}
-                            "dd" => {}
-                            "ua" => {}
-                            "ud" => {}
+                            "da" => {
+                                if let Some(cur_list) = &self.todolist.current_todolist {
+                                    let mut list = cur_list.borrow_mut();
+                                    list.tasks.sort_by(|a, b| {
+                                        match (a.borrow().due, b.borrow().due) {
+                                            (Some(ad), Some(bd)) => ad.cmp(&bd),
+                                            (Some(_), None) => std::cmp::Ordering::Less,
+                                            (None, Some(_)) => std::cmp::Ordering::Greater,
+                                            (None, None) => std::cmp::Ordering::Equal,
+                                        }
+                                    });
+                                }
+                            }
+                            "dd" => {
+                                if let Some(cur_list) = &self.todolist.current_todolist {
+                                    let mut list = cur_list.borrow_mut();
+                                    list.tasks.sort_by(|a, b| {
+                                        match (a.borrow().due, b.borrow().due) {
+                                            (Some(ad), Some(bd)) => bd.cmp(&ad),
+                                            (Some(_), None) => std::cmp::Ordering::Greater,
+                                            (None, Some(_)) => std::cmp::Ordering::Less,
+                                            (None, None) => std::cmp::Ordering::Equal,
+                                        }
+                                    });
+                                }
+                            }
+                            "ua" => {
+                                if let Some(cur_list) = &self.todolist.current_todolist {
+                                    let mut list = cur_list.borrow_mut();
+                                    list.tasks.sort_by(|a, b| {
+                                        let a_urg = &a.borrow().urgency;
+                                        let b_urg = &b.borrow().urgency;
+                                        match (a_urg, b_urg) {
+                                            (Some(au), Some(bu)) => au.to_order().cmp(&bu.to_order()),
+                                            (Some(_), None) => std::cmp::Ordering::Less,
+                                            (None, Some(_)) => std::cmp::Ordering::Greater,
+                                            (None, None) => std::cmp::Ordering::Equal,
+                                        }
+                                    });
+                                }
+                            }
+                            "ud" => {
+                                if let Some(cur_list) = &self.todolist.current_todolist {
+                                    let mut list = cur_list.borrow_mut();
+                                    list.tasks.sort_by(|a, b| {
+                                        let a_urg = &a.borrow().urgency;
+                                        let b_urg = &b.borrow().urgency;
+                                        match (a_urg, b_urg) {
+                                            (Some(au), Some(bu)) => bu.to_order().cmp(&au.to_order()),
+                                            (Some(_), None) => std::cmp::Ordering::Greater,
+                                            (None, Some(_)) => std::cmp::Ordering::Less,
+                                            (None, None) => std::cmp::Ordering::Equal,
+                                        }
+                                    });
+                                }
+                            }
                             _ => {}
                         }
+                        self.prompt.update_mode(origin_mode);
+                        let mut apps = appstate.lock().unwrap();
                         apps.current_mode = origin_mode;
-                        let _ = terminal.draw(|f| {
-                            self.update(f);
-                        });
+                        drop(apps);
+                        let _ = terminal.draw(|f| self.update(f));
                     }
                 },
             }

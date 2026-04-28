@@ -614,6 +614,10 @@ async fn handle_msg(
             Message::Sort => {
                 let _ = ui_tx.send(UiMessage::WAction(WidgetAction::Sort)).await;
             }
+            Message::ExitSort => {
+                // Currently handled in ui.rs sort loop by pressing any key (including Esc)
+                // which breaks out without applying sort if no valid sort method was entered
+            }
         }
     }
 }

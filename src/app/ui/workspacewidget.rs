@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use ratatui::{
-    style::{Color, Style, Stylize},
+    style::{Color, Style},
     widgets::{Block, List, ListItem, ListState, Padding, StatefulWidget, Widget},
 };
 use serde::{Deserialize, Serialize};
@@ -9,8 +9,9 @@ use uuid::Uuid;
 
 use crate::app::ui::{SelectAction, SelectBF, todolistwidget::TodoWidget};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub enum WorkspaceType {
+    #[default]
     Normal,
     Archived,
 }
@@ -92,6 +93,7 @@ pub struct WorkspaceWidget {
     pub focused: bool,
     #[serde(default)]
     pub ws_state: ListState,
+    #[serde(default)]
     pub ws_type: WorkspaceType,
 }
 
@@ -215,7 +217,13 @@ impl WorkspaceWidget {
 
 impl Default for WorkspaceWidget {
     fn default() -> Self {
-        Self::new(WorkspaceType::Normal)
+        Self {
+            workspaces: Vec::new(),
+            current_workspace: None,
+            focused: true,
+            ws_state: ListState::default(),
+            ws_type: WorkspaceType::Normal,
+        }
     }
 }
 
@@ -232,9 +240,13 @@ impl Widget for &mut WorkspaceWidget {
 
         let workspace_block = Block::bordered()
             .title(match self.ws_type {
-                WorkspaceType::Normal => " <1> Workspace ".light_green(),
-                WorkspaceType::Archived => " <2> Archived ".light_yellow(),
+                WorkspaceType::Normal => " <1> Workspace ",
+                WorkspaceType::Archived => " <2> Archived ",
             })
+            .title_style(Style::new().fg(match self.ws_type {
+                WorkspaceType::Normal => Color::LightGreen,
+                WorkspaceType::Archived => Color::LightYellow,
+            }))
             .border_style(if self.focused {
                 Style::new().fg(match self.ws_type {
                     WorkspaceType::Normal => Color::LightGreen,

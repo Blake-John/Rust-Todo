@@ -1,5 +1,7 @@
 use ratatui::{style::Stylize, text::Line, widgets::Widget};
 
+use crate::app::appstate::CurrentMode;
+
 #[derive(Debug)]
 pub struct PromptWidget {
     pub padding: String,
@@ -12,6 +14,16 @@ impl PromptWidget {
             padding: String::from("  "),
             desc: String::from("In Normal Mode"),
         }
+    }
+
+    pub fn update_mode(&mut self, mode: CurrentMode) {
+        self.desc = match mode {
+            CurrentMode::Normal => "In Normal Mode".to_string(),
+            CurrentMode::Insert => "In Insert Mode".to_string(),
+            CurrentMode::Search => "In Search Mode".to_string(),
+            CurrentMode::Help => "In Help Mode".to_string(),
+            CurrentMode::Sort => "In Sort Mode".to_string(),
+        };
     }
 }
 

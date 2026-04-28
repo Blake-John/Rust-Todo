@@ -47,10 +47,13 @@ use crate::app::{
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Datas {
     /// The main workspace data containing active workspaces
+    #[serde(default)]
     pub workspace: WorkspaceWidget,
     /// The todo list data containing all tasks organized by workspace
+    #[serde(default)]
     pub todolist: TodoWidget,
     /// The archived workspace data containing archived workspaces
+    #[serde(default)]
     pub archived_ws: WorkspaceWidget,
 }
 
@@ -132,9 +135,10 @@ pub fn save_data(path: &Path, datas: &Datas) -> Result<(), errors::Errors> {
 pub fn load_data(path: &Path) -> Result<Datas, errors::Errors> {
     if path.exists() {
         let content = fs::read_to_string(path).map_err(|_| errors::Errors::LoadError)?;
-        // let data = serde_json::from_str(&content).map_err(|_| errors::Errors::LoadError);
-        let data = serde_json::from_str(&content).unwrap();
-        Ok(data)
+        serde_json::from_str(&content).map_err(|e| {
+            eprintln!("Warning: Failed to load data: {}. Using default data.", e);
+            errors::Errors::LoadError
+        })
     } else {
         let _ = fs::create_dir_all(
             path.parent().unwrap_or(
