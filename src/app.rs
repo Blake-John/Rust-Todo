@@ -295,6 +295,11 @@ async fn handle_keyevt(
                                 let _ = tx.send(Message::Due).await;
                             }
                         }
+                        event::KeyCode::Char('T') => {
+                            if let CurrentFocus::TodoList = apps.current_focus {
+                                let _ = tx.send(Message::EditTags).await;
+                            }
+                        }
                         event::KeyCode::Char('x') => {
                             let _ = tx.send(Message::DeleteItem).await;
                         }
@@ -617,6 +622,9 @@ async fn handle_msg(
             Message::ExitSort => {
                 // Currently handled in ui.rs sort loop by pressing any key (including Esc)
                 // which breaks out without applying sort if no valid sort method was entered
+            }
+            Message::EditTags => {
+                let _ = ui_tx.send(UiMessage::WAction(WidgetAction::EditTags)).await;
             }
         }
     }

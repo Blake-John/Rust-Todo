@@ -84,6 +84,7 @@ impl Default for KeymapWidget {
                 Keymap::new("t", "todo", "mark the task as todo"),
                 Keymap::new("d", "deprecate", "mark the task as deprecated"),
                 Keymap::new("D", "due", "set the due date of current task"),
+                Keymap::new("T", "tags", "edit tags for current task"),
                 Keymap::new("r", "rename", "rename the current task"),
                 Keymap::new("s", "sort", "press to select sort by: da/dd/ua/ud"),
                 Keymap::new("f /", "filter", "search tasks in current workspace"),

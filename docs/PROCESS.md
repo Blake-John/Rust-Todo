@@ -20,6 +20,7 @@ This file records the development progress of the Rust Todo application.
 |------|-----|----------|-------|
 | 10:30 | T001 | Research | Read ui.rs:1485-1540 (Sort action), todolistwidget.rs - Found: Task has due: Option<NaiveDate>, urgency: Option<Urgency>. Sort targets todolist.current_todolist.tasks |
 | 10:45 | T001 | Research | Keymap.rs, appstate.rs - Confirmed: sort_hint defined, CurrentMode::Sort exists |
+| 14:00 | T006 | Research | Tag System: Analyzed existing code structure. Task struct in todolistwidget.rs has: desc, status, expanded, due, children, id, urgency. Need to add tags field. Similar pattern to urgency implementation. |
 
 ---
 
@@ -100,6 +101,29 @@ This file records the development progress of the Rust Todo application.
 
 ---
 
+## Phase: Tag System Implementation
+
+### Research (T006)
+
+**Status**: IN_PROGRESS
+
+**Notes**:
+- Analyzed Task struct in todolistwidget.rs (lines 38-47)
+- Current fields: desc, status, expanded, due, children, id, urgency
+- Plan: Add tags: Vec<String> field similar to how urgency is implemented
+- Need to modify: 
+  - Task struct (add tags field)
+  - Task::new() (initialize tags)
+  - UI rendering (display tags in task list)
+  - Keybindings (add/remove tags)
+  - keymap.rs (add tag hints)
+  - WidgetAction enum (add tag-related actions)
+
+**Blockers**:
+- None
+
+---
+
 ## Bug Fixes in This Session
 
 | ID | Issue | Status | Notes |
@@ -117,6 +141,6 @@ This file records the development progress of the Rust Todo application.
 |-------|-------|-----------|--------------|---------|
 | Sort Mode | T001-T005 | 5 | 0 | 0 |
 | Bug Fixes | B001-B004 | 4 | 0 | 0 |
-| Tag System | T006-T010 | 0 | 0 | 5 |
+| Tag System | T006-T010 | 0 | 1 | 4 |
 | Cleanup | T011-T012 | 0 | 0 | 2 |
-| **Total** | **16** | **9** | **0** | **7** |
+| **Total** | **16** | **9** | **1** | **6** |
